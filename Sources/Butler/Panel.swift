@@ -10,7 +10,7 @@ final class Panel: NSPanel {
 
     init(app: App, content: some View) {
         self.app = app
-        host = Host(rootView: AnyView(content))
+        host = Host(rootView: AnyView(content.autocorrectionDisabled()))
         // Без рамки и с прозрачным фоном: окно — стопка карточек (дни, настройки сверху); скругление рисуют
         // карточки, тень macOS строит по их форме.
         super.init(contentRect: .zero, styleMask: [.nonactivatingPanel], backing: .buffered, defer: true)
@@ -26,6 +26,19 @@ final class Panel: NSPanel {
     }
 
     override var canBecomeKey: Bool { true }
+
+    /// В полях Butler — логины, пароли и числа: автозамена macOS испортила бы их молча (`"` → `»`, `--` → `—`).
+    /// Правку опечаток выключает `autocorrectionDisabled()` у корня окна: этот флаг SwiftUI выставляет сам.
+    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        let done = super.makeFirstResponder(responder)
+        if let text = firstResponder as? NSTextView {
+            text.isAutomaticQuoteSubstitutionEnabled = false
+            text.isAutomaticDashSubstitutionEnabled = false
+            text.isAutomaticTextReplacementEnabled = false
+            text.isAutomaticTextCompletionEnabled = false
+        }
+        return done
+    }
 
     /// У Butler нет главного меню, а с ним и пунктов «Правка» — поэтому ⌘X, ⌘C, ⌘V, ⌘A, ⌘Z, ⌘⇧Z в полях ввода
     /// разбираются здесь. По коду клавиши, а не по букве: так они работают и в русской раскладке.
