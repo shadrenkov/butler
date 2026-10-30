@@ -339,7 +339,7 @@ struct Action: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Disc(symbol: symbol, count: count, size: 32, color: color, hoverColor: hoverColor, iconColor: iconColor)
-                Text(title).font(Ink.body).foregroundStyle(Ink.secondary).fixedSize()
+                Text(title).font(Ink.body).foregroundStyle(Ink.secondary).multilineTextAlignment(.center).fixedSize()
             }
             .frame(maxWidth: .infinity)
         }
@@ -419,7 +419,8 @@ private struct Info: View {
     /// Внизу — крупные кругляши: подключиться; пропустить или вернуть эту встречу; у серии — пропустить
     /// или вернуть все её встречи; VIP — серия или встреча; скрыть.
     private var actions: some View {
-        let all = meeting.isRecurring ? " все" : ""
+        // Второй строкой: в одну подпись про серию не влезает в свою долю ряда.
+        let all = meeting.isRecurring ? "\nвсю серию" : ""
         return HStack(alignment: .top, spacing: 0) {
             if showsJoin {
                 Action(symbol: "video.fill", title: "Подключиться", color: 0xE0743A, hoverColor: 0xC2531F, iconColor: .white) {
@@ -436,7 +437,7 @@ private struct Info: View {
                     Action(symbol: "bell", title: "Пропустить") { app.skip(meeting) }
                 }
                 if meeting.isRecurring {
-                    Action(symbol: "bell", count: 2, title: "Пропустить все") { app.ignore(meeting) }
+                    Action(symbol: "bell", count: 2, title: "Пропустить" + all) { app.ignore(meeting) }
                 }
             }
             // Залит, когда встреча VIP — по правилу или вручную; нажатие переопределяет правило.

@@ -828,7 +828,7 @@ final class App: NSObject, NSApplicationDelegate {
         tick()
     }
 
-    /// «Пропустить все» — название запоминается, чтобы серию было видно в списке скрытых.
+    /// «Пропустить всю серию» — название запоминается, чтобы серию было видно в списке скрытых.
     func ignore(_ m: Meeting) {
         state.ignored[m.ignoreKey] = m.subject
         state.save()
