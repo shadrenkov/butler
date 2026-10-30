@@ -457,7 +457,7 @@ private struct Info: View {
                 .font(Ink.body)
             }
             if let names = meeting.attendees, !names.isEmpty {
-                let (shown, rest) = shownAttendees(names, limit: 20, config: app.config)
+                let (shown, rest) = shownAttendees(names, limit: 40, config: app.config)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Image(systemName: "person.2").foregroundStyle(Ink.tertiary)
                     Flow {
