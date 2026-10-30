@@ -1,0 +1,6 @@
+.orca/
+.claude/
+.specify/
+specs/
+.DS_Store
+.build/
