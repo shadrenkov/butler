@@ -365,9 +365,48 @@ func linked(_ text: String) -> AttributedString {
         let written = text[found].lowercased()
         guard url.scheme == "mailto" || written.hasPrefix("http://") || written.hasPrefix("https://") else { continue }
         result[range].link = url
-        result[range].underlineStyle = .single
     }
     return result
+}
+
+/// Описание встречи. `NSTextView`, а не `Text`: выделяемый `Text` над ссылкой показывает текстовый курсор.
+private struct Description: NSViewRepresentable {
+    let text: String
+
+    final class Field: NSTextView {
+        override func clicked(onLink link: Any, at charIndex: Int) {
+            if let url = link as? URL { MTSLink.open(url) }
+        }
+    }
+
+    func makeNSView(context: Context) -> NSTextView {
+        let view = Field()
+        view.isEditable = false
+        view.drawsBackground = false
+        view.textContainerInset = .zero
+        view.textContainer?.lineFragmentPadding = 0
+        view.linkTextAttributes = [.foregroundColor: NSColor(Ink.accent), .underlineStyle: NSUnderlineStyle.single.rawValue,
+                                   .cursor: NSCursor.pointingHand]
+        return view
+    }
+
+    func updateNSView(_ view: NSTextView, context: Context) {
+        guard view.string != text else { return }
+        let string = NSMutableAttributedString(linked(text))
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = 1
+        string.addAttributes([.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor(Ink.primary), .paragraphStyle: style],
+                             range: NSRange(location: 0, length: string.length))
+        view.textStorage?.setAttributedString(string)
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView view: NSTextView, context: Context) -> CGSize? {
+        guard let container = view.textContainer, let manager = view.layoutManager else { return nil }
+        let width = proposal.width ?? 376
+        container.size = NSSize(width: width, height: .greatestFiniteMagnitude)
+        manager.ensureLayout(for: container)
+        return CGSize(width: width, height: ceil(manager.usedRect(for: container).height))
+    }
 }
 
 /// Кругляш VIP: залит, когда VIP.
@@ -490,12 +529,8 @@ private struct Info: View {
             }
             if let text = meeting.description {
                 ScrollView {
-                    Text(linked(text)).font(Ink.body).foregroundStyle(Ink.primary).textSelection(.enabled).tint(Ink.accent)
+                    Description(text: text)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .environment(\.openURL, OpenURLAction { url in
-                            MTSLink.open(url)
-                            return .handled
-                        })
                 }
                 .frame(maxHeight: 280)
                 .fixedSize(horizontal: false, vertical: true)
