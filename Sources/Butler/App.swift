@@ -868,12 +868,12 @@ final class App: NSObject, NSApplicationDelegate {
         tick()
     }
 
-    /// Звезда у организатора: VIP — убрать все записи, что есть в его имени; иначе — записать имя целиком.
-    func toggleVIPOrganizer(_ m: Meeting) {
-        let isVIP = isVIPOrganizer(m.organizerName, config)
+    /// Организатор или участник: VIP — убрать все записи, что есть в его имени; иначе — записать имя целиком.
+    func toggleVIP(_ name: String) {
+        let isVIP = isVIPOrganizer(name, config)
         changeVIP { json in
             let list = json["vipOrganizers"] as? [String] ?? []
-            json["vipOrganizers"] = isVIP ? list.filter { !m.organizerName.localizedCaseInsensitiveContains($0) } : list + [m.organizerName]
+            json["vipOrganizers"] = isVIP ? list.filter { !name.localizedCaseInsensitiveContains($0) } : list + [name]
         }
     }
 

@@ -75,9 +75,8 @@ private func isInactive(_ look: Look) -> Bool {
 /// Имя VIP-контакта во всплывашке — книжным красным, остальные — как текст вокруг.
 private let vipName = ink(0xB84F3E)
 
-/// «Иванов Иван, Петрова Анна и ещё 23» — по алфавиту; VIP-контакты — красным и всегда на виду,
-/// под «и ещё» уходят только остальные.
-func attendeesLine(_ names: [String], limit: Int, config: Config) -> Text {
+/// Участники на виду и сколько ушло под «и ещё 23»: по алфавиту, VIP-контакты — всегда на виду.
+func shownAttendees(_ names: [String], limit: Int, config: Config) -> (shown: [String], rest: Int) {
     let sorted = names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     var room = limit - sorted.filter { isVIPOrganizer($0, config) }.count
     let shown = sorted.filter { name in
@@ -85,12 +84,7 @@ func attendeesLine(_ names: [String], limit: Int, config: Config) -> Text {
         room -= 1
         return room >= 0
     }
-    let rest = names.count - shown.count
-    let line = shown.enumerated().reduce(Text("")) { line, item in
-        let name = Text(shortName(item.element)).foregroundStyle(isVIPOrganizer(item.element, config) ? vipName : Ink.secondary)
-        return item.offset == 0 ? name : line + Text(", ").foregroundStyle(Ink.secondary) + name
-    }
-    return rest > 0 ? line + Text(" и ещё \(rest)").foregroundStyle(Ink.secondary) : line
+    return (shown, names.count - shown.count)
 }
 
 /// «Иванов Иван Иванович» → «Иванов Иван»: отчество не нужно.
@@ -361,6 +355,79 @@ private struct OpeningCaption: View {
     }
 }
 
+/// Кругляш VIP: залит, когда VIP.
+@MainActor private func vipAction(_ vip: Bool, title: String, action: @escaping () -> Void) -> Action {
+    Action(symbol: vip ? "star.fill" : "star", title: title, color: vip ? 0xCF5F4C : 0xF3EBDD, hoverColor: vip ? 0xB84F3E : 0xE6D8C2,
+           iconColor: vip ? .white : Ink.secondary, action: action)
+}
+
+/// Имена в строку, как текст: что не влезает, целиком уходит на следующую строку.
+private struct Flow: Layout {
+    private func places(_ subviews: Subviews, width: CGFloat) -> (points: [CGPoint], size: CGSize) {
+        let space: CGFloat = 2.3 // ширина пробела в тексте этого размера
+        var points: [CGPoint] = []
+        var (x, y, height, right): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                (x, y, height) = (0, y + height, 0)
+            }
+            points.append(CGPoint(x: x, y: y))
+            right = max(right, x + size.width)
+            height = max(height, size.height)
+            x += size.width + space
+        }
+        return (points, CGSize(width: right, height: y + height))
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        places(subviews, width: proposal.width ?? .infinity).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let points = places(subviews, width: bounds.width).points
+        for (view, point) in zip(subviews, points) {
+            view.place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y), proposal: .unspecified)
+        }
+    }
+
+    /// Значок слева стоит на базовой линии первой строки.
+    func explicitAlignment(of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGFloat? {
+        guide == .firstTextBaseline ? subviews.first.map { bounds.minY + $0.dimensions(in: .unspecified)[.firstTextBaseline] } : nil
+    }
+}
+
+/// Организатор или участник: под мышью подсвечивается, щелчок открывает маленькую всплывашку с кругляшом VIP.
+/// `name` — полное имя, его видит список VIP, `title` — как оно показано.
+private struct Contact: View {
+    let app: App
+    let name: String
+    let title: String
+    @SwiftUI.State private var hovering = false
+    @SwiftUI.State private var open = false
+
+    var body: some View {
+        let vip = isVIPOrganizer(name, app.config)
+        Text(title)
+            .foregroundStyle(vip ? vipName : Ink.secondary)
+            // Подсветка шире имени, но строку не раздвигает.
+            .background {
+                RoundedRectangle(cornerRadius: 3).fill(hovering || open ? ink(0xE6D8C2) : .clear)
+                    .padding(.horizontal, -2)
+                    .padding(.vertical, -1)
+            }
+            .contentShape(Rectangle())
+            .onHover { hovering = $0 }
+            .onTapGesture { open.toggle() }
+            .popover(isPresented: $open, arrowEdge: .bottom) {
+                vipAction(vip, title: vip ? "Убрать из VIP" : "Добавить в VIP") { app.toggleVIP(name) }
+                    .frame(width: 96)
+                    .padding(12)
+                    .background(Ink.window)
+            }
+    }
+}
+
 /// Всплывающие подробности: время по календарю и во втором поясе, участники, описание, редкие действия.
 private struct Info: View {
     let app: App
@@ -379,21 +446,30 @@ private struct Info: View {
                 let vip = isVIPOrganizer(meeting.organizerName, app.config)
                 HStack(spacing: 4) {
                     Image(systemName: "person").foregroundStyle(Ink.tertiary)
-                    Text(meeting.organizerName).foregroundStyle(vip ? vipName : Ink.secondary)
+                    Contact(app: app, name: meeting.organizerName, title: meeting.organizerName)
                     // Маленькая кнопка, как «Пропустить» на карточке в основном окне.
                     IconButton(symbol: vip ? "star.fill" : "star",
                                help: vip ? "Убрать организатора из VIP" : "Сделать организатора VIP",
                                color: vip ? ink(0xCF5F4C) : Ink.tertiary, hoverColor: vip ? Ink.secondary : ink(0xCF5F4C)) {
-                        app.toggleVIPOrganizer(meeting)
+                        app.toggleVIP(meeting.organizerName)
                     }
                 }
                 .font(Ink.body)
             }
             if let names = meeting.attendees, !names.isEmpty {
+                let (shown, rest) = shownAttendees(names, limit: 20, config: app.config)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Image(systemName: "person.2").foregroundStyle(Ink.tertiary)
-                    attendeesLine(names, limit: 20, config: app.config)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Flow {
+                        ForEach(shown.indices, id: \.self) { index in
+                            HStack(spacing: 0) {
+                                Contact(app: app, name: shown[index], title: shortName(shown[index]))
+                                if index < shown.count - 1 { Text(",").foregroundStyle(Ink.secondary) }
+                            }
+                        }
+                        if rest > 0 { Text("и ещё \(rest)").foregroundStyle(Ink.secondary) }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(Ink.body)
             }
@@ -442,12 +518,11 @@ private struct Info: View {
             }
             // Залит, когда встреча VIP — по правилу или вручную; нажатие переопределяет правило.
             let vip = meeting.isVIP
-            Action(symbol: vip ? "star.fill" : "star", title: "VIP", color: vip ? 0xCF5F4C : 0xF3EBDD,
-                   hoverColor: vip ? 0xB84F3E : 0xE6D8C2, iconColor: vip ? .white : Ink.secondary) { app.toggleVIPMeeting(meeting) }
+            vipAction(vip, title: "VIP") { app.toggleVIPMeeting(meeting) }
                 .help(meeting.isRecurring ? (vip ? "Серия больше не VIP" : "Все встречи серии — VIP")
                                           : (vip ? "Встреча больше не VIP" : "Эта встреча — VIP"))
             Action(symbol: "trash", title: "Скрыть" + all) { app.hide(meeting) }
-                .help(meeting.isRecurring ? "Скрыть всю серию из Butler навсегда" : "Скрыть из Butler навсегда")
+                .help((meeting.isRecurring ? "Скрыть всю серию из расписания Butler" : "Скрыть из расписания Butler") + ". Вернуть можно в настройках")
         }
         .frame(maxWidth: .infinity)
     }
