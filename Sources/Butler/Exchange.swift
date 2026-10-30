@@ -500,7 +500,8 @@ struct MailboxesEditor: View {
                 .foregroundStyle(Ink.tertiary).fixedSize(horizontal: false, vertical: true)
             Text("Здесь пароли видны как есть, а на диске хранятся в зашифрованном виде.")
                 .foregroundStyle(Ink.tertiary).fixedSize(horizontal: false, vertical: true)
-            TextEditor(text: Binding(get: { current }, set: { text = $0; error = nil }))
+            // `get` читает состояние, а не `current`: снимок старше набранного, и редактор сбросил бы курсор в конец.
+            TextEditor(text: Binding(get: { text ?? saved }, set: { text = $0; error = nil }))
                 .font(.system(size: 9.5, design: .monospaced))
                 .scrollContentBackground(.hidden)
                 .frame(height: 220)
