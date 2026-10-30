@@ -355,6 +355,21 @@ private struct OpeningCaption: View {
     }
 }
 
+/// Описание встречи со ссылками: только то, что написано как `http://`, `https://` или почта. Текст приходит из чужих
+/// приглашений: `file:`, `ftp:` и слова вроде `notes.md`, в которых детектор тоже видит адрес, ссылками не становятся.
+func linked(_ text: String) -> AttributedString {
+    var result = AttributedString(text)
+    let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    for match in detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? [] {
+        guard let url = match.url, let found = Range(match.range, in: text), let range = Range(found, in: result) else { continue }
+        let written = text[found].lowercased()
+        guard url.scheme == "mailto" || written.hasPrefix("http://") || written.hasPrefix("https://") else { continue }
+        result[range].link = url
+        result[range].underlineStyle = .single
+    }
+    return result
+}
+
 /// Кругляш VIP: залит, когда VIP.
 @MainActor private func vipAction(_ vip: Bool, title: String, action: @escaping () -> Void) -> Action {
     Action(symbol: vip ? "star.fill" : "star", title: title, color: vip ? 0xCF5F4C : 0xF3EBDD, hoverColor: vip ? 0xB84F3E : 0xE6D8C2,
@@ -475,8 +490,12 @@ private struct Info: View {
             }
             if let text = meeting.description {
                 ScrollView {
-                    Text(text).font(Ink.body).foregroundStyle(Ink.primary).textSelection(.enabled)
+                    Text(linked(text)).font(Ink.body).foregroundStyle(Ink.primary).textSelection(.enabled).tint(Ink.accent)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .environment(\.openURL, OpenURLAction { url in
+                            MTSLink.open(url)
+                            return .handled
+                        })
                 }
                 .frame(maxHeight: 280)
                 .fixedSize(horizontal: false, vertical: true)

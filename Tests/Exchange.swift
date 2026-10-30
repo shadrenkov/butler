@@ -354,3 +354,13 @@ private func hex(_ text: String) -> Data {
                                    info: info, time: Data(count: 8), client: hex("aaaaaaaaaaaaaaaa"))
     #expect(response.prefix(16) == hex("68cd0ab851e51c96aabc927bebef6a1c"))
 }
+
+// Описание приходит из чужих приглашений: ссылками становятся только http(s) и почта.
+@Test func descriptionLinks() {
+    func links(_ text: String) -> [String] { linked(text).runs.compactMap { $0.link?.absoluteString } }
+    #expect(links("Повестка: https://example.com/a?b=1, потом http://example.com.") == ["https://example.com/a?b=1", "http://example.com"])
+    #expect(links("Вопросы: ivanov@example.com.") == ["mailto:ivanov@example.com"])
+    #expect(links("<https://example.com/x>") == ["https://example.com/x"])
+    #expect(links("ftp://example.com/x file:///etc/passwd notes.md example.com").isEmpty)
+    #expect(links("Просто текст").isEmpty)
+}
