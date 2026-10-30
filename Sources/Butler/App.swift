@@ -598,7 +598,7 @@ final class App: NSObject, NSApplicationDelegate {
         if day == selectedDay { openDay(day) } else { selectedDay = day }
     }
 
-    /// Стрелки на месяце: выбран соседний день, за краем месяца перелистывается и месяц.
+    /// Стрелки на месяце: выбран соседний день или тот же день соседней недели, за краем месяца перелистывается и месяц.
     func moveSelection(_ offset: Int) {
         guard let day = day(selectedDay, plus: offset) else { return }
         selectedDay = day

@@ -266,6 +266,9 @@ struct MonthView: View {
             Group {
                 Button("") { app.moveSelection(-1) }.keyboardShortcut(key(.leftArrow))
                 Button("") { app.moveSelection(1) }.keyboardShortcut(key(.rightArrow))
+                Button("") { app.moveSelection(-7) }.keyboardShortcut(key(.upArrow))
+                Button("") { app.moveSelection(7) }.keyboardShortcut(key(.downArrow))
+                Button("") { app.toggleMark(app.selectedDay) }.keyboardShortcut(key(.space))
                 Button("") { app.openDay(app.selectedDay) }.keyboardShortcut(key(.return))
             }
             .frame(width: 0)
