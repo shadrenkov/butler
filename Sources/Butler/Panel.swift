@@ -139,7 +139,8 @@ final class Panel: NSPanel {
         closeOnClickOutside(after: 0)
     }
 
-    /// Клик мимо окна закрывает его, а во время напоминания — откладывает, как «Закрыть».
+    /// Клик мимо окна закрывает его, а во время напоминания — откладывает, как «Закрыть». Редактор ящиков клик
+    /// не закрывает: так можно скопировать пароль из другого приложения и не потерять правки.
     /// Butler не становится активным приложением, поэтому глобальный монитор видит и клики по его
     /// собственным окнам — их отсеиваем по координатам.
     private func closeOnClickOutside(after delay: TimeInterval) {
@@ -154,7 +155,7 @@ final class Panel: NSPanel {
                 let inside = NSApp.windows.contains {
                     $0.isVisible && ($0 === self ? $0.frame.insetBy(dx: windowMargin, dy: windowMargin) : $0.frame).contains(point)
                 }
-                if !inside { self.app.close() }
+                if !inside, self.app.dialog != .mailboxes { self.app.close() }
             }
         }
     }
@@ -167,11 +168,13 @@ final class Panel: NSPanel {
     }
 
     /// Спрятанное окно снимает месяц: открывается оно всё равно на сегодняшнем дне, а месяц в скрытом окне
-    /// только перерисовывается по таймеру и тратит процессор.
+    /// только перерисовывается по таймеру и тратит процессор. Редактор ящиков снимается тоже: снова открыть
+    /// пароли можно только через Touch ID.
     override func orderOut(_ sender: Any?) {
         if let clickOutside { NSEvent.removeMonitor(clickOutside) }
         clickOutside = nil
         app.monthOpen = false
+        if app.dialog == .mailboxes { app.dialog = nil }
         super.orderOut(sender)
     }
 

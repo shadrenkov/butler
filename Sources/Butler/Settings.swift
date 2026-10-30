@@ -418,7 +418,7 @@ struct SettingsView: View {
                     Task {
                         let reason = "показать пароли ящиков Exchange"
                         if (try? await LAContext().evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)) == true {
-                            app.dialog = .mailboxes
+                            app.openMailboxes()
                         }
                     }
                 }

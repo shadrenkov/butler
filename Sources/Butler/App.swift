@@ -915,6 +915,15 @@ final class App: NSObject, NSApplicationDelegate {
         panel.makeKey()
     }
 
+    /// Ящики — сразу после Touch ID. Щелчок по системному запросу пароля закрывает окно как щелчок мимо него:
+    /// тогда оно открывается снова. Настройки за это время могло снять напоминание — тогда ящики не открываются.
+    func openMailboxes() {
+        guard settingsOpen else { return }
+        if !panel.isVisible { panel.showAlert(soft: false) }
+        dialog = .mailboxes
+        panel.makeKey()
+    }
+
     /// Записать одно поле в `config.json` и сразу применить; битый файл не трогается.
     func changeConfig(_ key: String, _ value: Any) {
         guard configError == nil else { return }
