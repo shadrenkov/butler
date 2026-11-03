@@ -549,7 +549,9 @@ final class App: NSObject, NSApplicationDelegate {
             (daysAt[day], dayErrors[day]) = (read.at, nil)
             return
         }
-        if let failure = config.mailboxes.compactMap({ state.calendar[$0.address]?.failure }).first(where: { $0 != .noPassword }) {
+        // Ящик в сбое не мешает остальным: день читается из тех, что на связи. Ошибка — только если таких нет.
+        let healthy = config.mailboxes.filter { [nil, .noPassword].contains(state.calendar[$0.address]?.failure) }
+        if healthy.isEmpty, let failure = config.mailboxes.compactMap({ state.calendar[$0.address]?.failure }).first {
             dayErrors[day] = failure.text
             return
         }
@@ -560,13 +562,14 @@ final class App: NSObject, NSApplicationDelegate {
         Task {
             defer { loading.remove(day) }
             var boxes: [String: Box] = [:]
-            for m in config.mailboxes {
+            var failure: Failure?
+            for m in healthy {
                 let box = await Butler.read(m, password: passwords[m.address], from: from, to: to, days: day...day, box: Box())
-                if let failure = box.failure, failure != .noPassword {
-                    dayErrors[day] = failure.text
-                    return
-                }
-                boxes[m.address] = box
+                if box.failure == nil { boxes[m.address] = box } else if box.failure != .noPassword { failure = box.failure }
+            }
+            if boxes.isEmpty, let failure {
+                dayErrors[day] = failure.text
+                return
             }
             days[day] = Day(date: day, events: visible(assemble(boxes, order: config.mailboxes.map(\.address), day: day, config: config)))
             daysAt[day] = currentTime()
@@ -656,12 +659,14 @@ final class App: NSObject, NSApplicationDelegate {
         guard currentTime().timeIntervalSince(months[month]?.at ?? .distantPast) > 600, monthLoad == nil,
               let first = days.first, let last = days.last, let from = bounds(first)?.start, let to = bounds(last)?.end
         else { return }
-        // Время попытки не ставится: сбой пройдёт — месяц прочитается при следующем показе.
-        if let failure = config.mailboxes.compactMap({ state.calendar[$0.address]?.failure }).first(where: { $0 != .noPassword }) {
+        // Ящик в сбое не читается, месяц собирается из остальных. Все в сбое — время попытки не ставится:
+        // сбой пройдёт — месяц прочитается при следующем показе.
+        let healthy = config.mailboxes.filter { [nil, .noPassword].contains(state.calendar[$0.address]?.failure) }
+        if healthy.isEmpty, let failure = config.mailboxes.compactMap({ state.calendar[$0.address]?.failure }).first {
             months[month, default: MonthRead(at: .distantPast)].failure = failure
             return
         }
-        let mailboxes = config.mailboxes.filter { !reading.contains($0.address) && passwords[$0.address] != nil }
+        let mailboxes = healthy.filter { !reading.contains($0.address) && passwords[$0.address] != nil }
         guard !mailboxes.isEmpty else { return }
         reading.formUnion(mailboxes.map(\.address))
         months[month, default: MonthRead(at: .distantPast)].at = currentTime()
@@ -677,19 +682,22 @@ final class App: NSObject, NSApplicationDelegate {
         }
         Task {
             var boxes = months[month]?.boxes ?? [:]
-            var failure: Failure?
+            var failures: [Failure] = []
+            var answered = false
             for (address, task) in reads {
                 let box = await task.value
-                if let f = box.failure, f != .noPassword { failure = f } else { boxes[address] = box }
+                if let f = box.failure, f != .noPassword { failures.append(f) } else { boxes[address] = box; answered = answered || box.failure == nil }
             }
             reading.subtract(mailboxes.map(\.address))
+            // Сбой месяца — только когда не ответил ни один ящик: иначе месяц показывает, что получено.
+            let failure = answered ? nil : failures.first
             // Дни и встречи меняются вместе: иначе прежние встречи сочтутся встречами нового диапазона.
             if failure == nil {
                 months[month]?.boxes = boxes
                 months[month]?.days = first...last
             }
             months[month]?.failure = failure
-            if failure == nil, let load = monthLoad {
+            if failures.isEmpty, let load = monthLoad {
                 state.loadStats.add(load, now: .now)
                 state.save()
             }
