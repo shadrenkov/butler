@@ -6,9 +6,21 @@ import SwiftUI
 /// и собираются тем же `assemble`.
 @MainActor let store = EKEventStore()
 
-/// Встречи Mac есть, только когда доступ дан полностью. Запрашивает его одно окно «Календари Mac».
-var hasCalendarAccess: Bool {
-    EKEventStore.authorizationStatus(for: .event) == .fullAccess && !offlineMode
+/// Встречи Mac есть, только когда доступ дан полностью. Запрашивает его одно окно «Календари Mac». Статус — системный
+/// вызов, а месяц спрашивает его на каждый из 42 дней: ответ помнится 5 секунд, отзыв доступа всё равно виден сразу
+/// после них.
+@MainActor var hasCalendarAccess: Bool {
+    if let (access, at) = checkedAccess, Date.now.timeIntervalSince(at) < 5 { return access }
+    let access = EKEventStore.authorizationStatus(for: .event) == .fullAccess && !offlineMode
+    checkedAccess = (access, .now)
+    return access
+}
+
+@MainActor private var checkedAccess: (Bool, Date)?
+
+/// Доступ только что запрошен — статус перечитывается сразу.
+@MainActor func forgetAccess() {
+    checkedAccess = nil
 }
 
 @MainActor func macCalendars() -> [EKCalendar] {
@@ -100,6 +112,7 @@ struct CalendarsDialog: View {
             guard status == .notDetermined else { return }
             _ = try? await store.requestFullAccessToEvents()
             status = EKEventStore.authorizationStatus(for: .event)
+            forgetAccess()
             app.calendarsChanged()
             // Щелчок по системному запросу закрывает окно Butler как щелчок мимо — оно открывается снова.
             app.openDialog(.calendars)

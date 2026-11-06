@@ -237,7 +237,7 @@ struct MonthView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
             // Низ карточки — с теми же полями по бокам, что у сетки.
-            Selected(app: app, meetings: meetings[app.selectedDay] ?? app.monthMeetings(app.selectedDay), scrolls: scrolls)
+            Selected(app: app, scrolls: scrolls)
                 .padding(.horizontal, 8)
             Spacer(minLength: 0)
             footer(month)
@@ -291,13 +291,9 @@ struct MonthView: View {
             }
             // Кругляши — как действия во всплывашке встречи: отметка включённая — красная, как VIP.
             HStack(alignment: .bottom, spacing: 12) {
-                let marked = app.config.markedDays.contains(app.selectedDay)
-                Action(symbol: "circle", title: "Отметить день", color: marked ? 0xCF5F4C : 0xF3EBDD,
-                       hoverColor: marked ? 0xB84F3E : 0xE6D8C2, iconColor: marked ? .white : Ink.secondary) {
-                    app.toggleMark(app.selectedDay)
-                }
-                .fixedSize()
-                .padding(.leading, 8)
+                Mark(app: app)
+                    .fixedSize()
+                    .padding(.leading, 8)
                 Action(symbol: "calendar.day.timeline.left", title: "Открыть день") { app.openDay(app.selectedDay) }
                     .fixedSize()
                 Spacer()
@@ -316,14 +312,28 @@ struct MonthView: View {
     }
 }
 
+/// «Отметить день» — отдельный вид: выбранный день читает только он, и стрелка не пересобирает весь месяц.
+private struct Mark: View {
+    let app: App
+
+    var body: some View {
+        let marked = app.config.markedDays.contains(app.selectedDay)
+        Action(symbol: "circle", title: "Отметить день", color: marked ? 0xCF5F4C : 0xF3EBDD,
+               hoverColor: marked ? 0xB84F3E : 0xE6D8C2, iconColor: marked ? .white : Ink.secondary) {
+            app.toggleMark(app.selectedDay)
+        }
+    }
+}
+
 /// Важные встречи выбранного дня — теми же плашками, что на шкале, списком по времени. Отдельный вид: плашкам нужно
-/// текущее время, и раз в секунду перерисовывается только список, а не вся сетка с пересборкой 42 дней.
+/// текущее время, а стрелки меняют выбранный день — перерисовывается только список, а не вся сетка с пересборкой
+/// 42 дней.
 private struct Selected: View {
     let app: App
-    let meetings: [Meeting]?
     let scrolls: Bool
 
     var body: some View {
+        let meetings = app.monthMeetings(app.selectedDay)
         VStack(alignment: .leading, spacing: 8) {
             Text(dayTitle(app.selectedDay) ?? "").font(Ink.title).foregroundStyle(Ink.primary)
             if let meetings {
