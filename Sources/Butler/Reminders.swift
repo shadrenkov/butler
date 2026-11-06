@@ -31,22 +31,28 @@ struct Reminders {
     /// «ОК» выключает будильник: напоминание больше не звенит, опоздание не показывается.
     var acknowledged: Set<String> = []
 
+    /// Напоминание не выключено. Ещё ни разу не отложенное живёт до 10-й минуты встречи: Butler, запущенный или
+    /// разбуженный посреди встречи, о ней не звенит. Отложенным дальше правят повторы.
+    private func alive(_ m: Meeting, now: Date) -> Bool {
+        !acknowledged.contains(m.reminderKey) && (quietUntil[m.reminderKey] != nil || now < m.start + 600)
+    }
+
     /// Встречи, о которых напоминание звенит прямо сейчас.
     func reminding(_ meetings: [Meeting], now: Date, state: State, config: Config) -> [Meeting] {
         meetings
             .filter { m in
-                !m.isAllDay && !isSettled(m, state) && !acknowledged.contains(m.reminderKey)
-                    && remindAt(m, config: config) <= now && now < m.end
+                !m.isAllDay && !isSettled(m, state)
+                    && remindAt(m, config: config) <= now && now < m.end && alive(m, now: now)
                     && quietUntil[m.reminderKey].map { $0 <= now } ?? true
             }
             .sorted { $0.start < $1.start }
     }
 
-    /// Встречи, на которые пользователь опаздывает: уже идут, решения нет, напоминание не выключено.
+    /// Встречи, на которые пользователь опаздывает: уже идут, решения нет, напоминание не выключено и не истекло.
     func late(_ meetings: [Meeting], now: Date, state: State) -> [Meeting] {
         meetings
             .filter { m in
-                !m.isAllDay && !isSettled(m, state) && !acknowledged.contains(m.reminderKey) && m.start <= now && now < m.end
+                !m.isAllDay && !isSettled(m, state) && m.start <= now && now < m.end && alive(m, now: now)
             }
             .sorted { $0.start < $1.start }
     }

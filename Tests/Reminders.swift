@@ -38,6 +38,13 @@ private func ids(_ r: Reminders, _ ms: [Meeting], at now: Date, state s: State =
     #expect(ids(Reminders(), m, at: t0 - 21, config: config(offset: 20)).isEmpty)
 }
 
+@Test func neverSnoozedReminderExpiresTenMinutesAfterStart() {
+    let m = [meeting("a", minutes: 60)]
+    #expect(ids(Reminders(), m, at: t0 + 599) == ["a"])
+    #expect(ids(Reminders(), m, at: t0 + 600).isEmpty)
+    #expect(Reminders().late(m, now: t0 + 600, state: State()).isEmpty)
+}
+
 @Test func unansweredReminderRepeatsThenTurnsOffLikeOK() {
     let m = [meeting("a", minutes: 60)]
     var r = Reminders()
