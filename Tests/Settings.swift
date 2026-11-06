@@ -55,6 +55,7 @@ private func json(_ data: Data?) -> [String: Any] {
     #expect(config.playAtDesk && config.playAway && config.playInCall)
     #expect(config.soundAtDesk == "vibraphone" && config.soundInCall == "vibraphone" && config.soundAway == "doorbell")
     #expect(config.awayVolume == 75 && config.awayRepeats == 0 && config.awayAfterMinutes == 2)
+    #expect(config.reminderRepeats == 3)
     #expect(config.autoOpenMTSLink && config.autoOpenSeconds == 30)
     #expect(Sound.all.count == 15 && Sound.all.filter(\.isLoud).count == 5)
 }

@@ -7,6 +7,8 @@ import SwiftUI
 struct Config: Decodable {
     var reminderOffsetSeconds: Double = 0
     var vipReminderOffsetSeconds: Double = 60
+    /// Сколько раз неотвеченное напоминание откладывается само на 5 минут, прежде чем выключиться, как от «ОК».
+    var reminderRepeats = 3
     var homeTimeZone = TimeZone.current.identifier
     /// Показывать ли рядом время во втором, домашнем часовом поясе.
     var showHomeTime = false
@@ -70,6 +72,7 @@ struct Config: Decodable {
         }
         reminderOffsetSeconds = try value(.reminderOffsetSeconds, reminderOffsetSeconds)
         vipReminderOffsetSeconds = try value(.vipReminderOffsetSeconds, vipReminderOffsetSeconds)
+        reminderRepeats = try value(.reminderRepeats, reminderRepeats)
         homeTimeZone = try value(.homeTimeZone, homeTimeZone)
         showHomeTime = try value(.showHomeTime, showHomeTime)
         // Старые ключи склеивали идентификатор разовой встречи с её версией: `ItemId|ChangeKey`.
@@ -96,7 +99,7 @@ struct Config: Decodable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case reminderOffsetSeconds, vipReminderOffsetSeconds, homeTimeZone, showHomeTime, hidden
+        case reminderOffsetSeconds, vipReminderOffsetSeconds, reminderRepeats, homeTimeZone, showHomeTime, hidden
         case playAtDesk, soundAtDesk, playAway, soundAway, awayVolume, awayRepeats, playInCall, soundInCall
         case awayAfterMinutes, autoOpenMTSLink, autoOpenSeconds, mailboxes, vipOrganizers, vipMeetings, markedDays
         case wakeUpHours, wakeUpBlinkHours
@@ -146,6 +149,7 @@ struct Config: Decodable {
         }
         if !(0...100).contains(config.awayVolume) { return (Config(), "громкость не от 0 до 100") }
         if !(0...5).contains(config.awayRepeats) { return (Config(), "повторов не от 0 до 5") }
+        if !(0...5).contains(config.reminderRepeats) { return (Config(), "автоповторов напоминания не от 0 до 5") }
         if config.awayAfterMinutes < 1 { return (Config(), "порог «не у компьютера» меньше минуты") }
         if config.autoOpenSeconds < 0 { return (Config(), "отрицательный срок автооткрытия") }
         if config.wakeUpBlinkHours < 0 || config.wakeUpBlinkHours > config.wakeUpHours {
@@ -362,6 +366,15 @@ struct SettingsView: View {
                 Field(value: number(app.config.vipReminderOffsetSeconds), unit: "с", check: { atLeast($0, 0, "не меньше 0") }) {
                     app.changeConfig("vipReminderOffsetSeconds", Double($0)!)
                 }
+            }
+            HStack(spacing: 6) {
+                Text("Повторять автоматически")
+                Picker("", selection: Binding(get: { app.config.reminderRepeats }, set: { app.changeConfig("reminderRepeats", $0) })) {
+                    Text("ни разу").tag(0)
+                    ForEach(1...5, id: \.self) { Text("\($0) \($0 == 1 || $0 == 5 ? "раз" : "раза")").tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
             }
         }
     }

@@ -299,6 +299,9 @@ final class App: NSObject, NSApplicationDelegate {
         config.mailboxes.contains { state.calendar[$0.address]?.success != nil }
     }
 
+    /// Последний звонок: без ответа сработает «ОК», а не «Отложить».
+    var isFinalRing: Bool { reminders.isFinal(reminding, limit: config.reminderRepeats) }
+
     /// Сколько индикатора автоповтора уже заполнено: от 0 до 1 за 30 секунд.
     func autoSnoozeProgress(at date: Date) -> Double {
         guard let ringingSince else { return 0 }
@@ -353,7 +356,7 @@ final class App: NSObject, NSApplicationDelegate {
                 }
             }
         } else if autoSnoozeProgress(at: time) >= 1 {
-            reminders.snooze(current, minutes: 5, now: time, byUser: false)
+            reminders.unanswered(current, now: time, limit: config.reminderRepeats)
             tick()
             if reminding.isEmpty { panel.orderOut(nil) }
             return
@@ -807,7 +810,7 @@ final class App: NSObject, NSApplicationDelegate {
 
     /// Как будильник: «Отложить» — окно закрывается, через `minutes` напоминание зазвенит снова.
     func snooze(_ minutes: Int) {
-        reminders.snooze(pending, minutes: minutes, now: currentTime(), byUser: true)
+        reminders.snooze(pending, minutes: minutes, now: currentTime())
         tick()
         if reminding.isEmpty { panel.orderOut(nil) }
     }

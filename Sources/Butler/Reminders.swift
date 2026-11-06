@@ -22,36 +22,31 @@ func isSettled(_ m: Meeting, _ state: State) -> Bool {
     state.decisions[m.eventId] != nil || state.ignored[m.ignoreKey] != nil || m.isFree == true
 }
 
-/// Состояние напоминаний в памяти: до какого момента молчать, откладывал ли пользователь сам и
+/// Состояние напоминаний в памяти: до какого момента молчать, сколько раз напоминание повторилось само и
 /// нажал ли «ОК».
 struct Reminders {
     var quietUntil: [String: Date] = [:]
-    /// Пользователь хоть раз сам отложил — предел в 10 минут после начала больше не действует.
-    var userSnoozed: Set<String> = []
+    /// Сколько раз напоминание отложилось само с последнего «Отложить» пользователя.
+    var repeats: [String: Int] = [:]
     /// «ОК» выключает будильник: напоминание больше не звенит, опоздание не показывается.
     var acknowledged: Set<String> = []
-
-    /// Неотвеченное напоминание живёт до 10-й минуты после начала встречи, а отложенное мной — дольше.
-    private func alive(_ m: Meeting, now: Date) -> Bool {
-        !acknowledged.contains(m.reminderKey) && (userSnoozed.contains(m.reminderKey) || now < m.start + 600)
-    }
 
     /// Встречи, о которых напоминание звенит прямо сейчас.
     func reminding(_ meetings: [Meeting], now: Date, state: State, config: Config) -> [Meeting] {
         meetings
             .filter { m in
-                !m.isAllDay && !isSettled(m, state)
-                    && remindAt(m, config: config) <= now && now < m.end && alive(m, now: now)
+                !m.isAllDay && !isSettled(m, state) && !acknowledged.contains(m.reminderKey)
+                    && remindAt(m, config: config) <= now && now < m.end
                     && quietUntil[m.reminderKey].map { $0 <= now } ?? true
             }
             .sorted { $0.start < $1.start }
     }
 
-    /// Встречи, на которые пользователь опаздывает: уже идут, решения нет, напоминание не выключено и не истекло.
+    /// Встречи, на которые пользователь опаздывает: уже идут, решения нет, напоминание не выключено.
     func late(_ meetings: [Meeting], now: Date, state: State) -> [Meeting] {
         meetings
             .filter { m in
-                !m.isAllDay && !isSettled(m, state) && m.start <= now && now < m.end && alive(m, now: now)
+                !m.isAllDay && !isSettled(m, state) && !acknowledged.contains(m.reminderKey) && m.start <= now && now < m.end
             }
             .sorted { $0.start < $1.start }
     }
@@ -60,10 +55,28 @@ struct Reminders {
         acknowledged.formUnion(meetings.map(\.reminderKey))
     }
 
-    mutating func snooze(_ meetings: [Meeting], minutes: Int, now: Date, byUser: Bool) {
+    /// «Отложить» пользователя: молчать `minutes` и заново отсчитывать автоповторы.
+    mutating func snooze(_ meetings: [Meeting], minutes: Int, now: Date) {
         for m in meetings {
             quietUntil[m.reminderKey] = now + Double(minutes * 60)
-            if byUser { userSnoozed.insert(m.reminderKey) }
+            repeats[m.reminderKey] = nil
+        }
+    }
+
+    /// Звонок последний: повторы кончились, и без ответа напоминание выключится, как от «ОК».
+    func isFinal(_ meetings: [Meeting], limit: Int) -> Bool {
+        !meetings.isEmpty && meetings.allSatisfy { repeats[$0.reminderKey, default: 0] >= limit }
+    }
+
+    /// Ответа нет: встреча с оставшимися повторами откладывается на 5 минут, остальные выключаются, как от «ОК».
+    mutating func unanswered(_ meetings: [Meeting], now: Date, limit: Int) {
+        for m in meetings {
+            if repeats[m.reminderKey, default: 0] >= limit {
+                acknowledged.insert(m.reminderKey)
+            } else {
+                quietUntil[m.reminderKey] = now + 300
+                repeats[m.reminderKey, default: 0] += 1
+            }
         }
     }
 }

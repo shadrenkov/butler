@@ -38,25 +38,31 @@ private func ids(_ r: Reminders, _ ms: [Meeting], at now: Date, state s: State =
     #expect(ids(Reminders(), m, at: t0 - 21, config: config(offset: 20)).isEmpty)
 }
 
-@Test func unansweredReminderExpiresTenMinutesAfterStart() {
+@Test func unansweredReminderRepeatsThenTurnsOffLikeOK() {
     let m = [meeting("a", minutes: 60)]
-    #expect(ids(Reminders(), m, at: t0 + 599) == ["a"])
-    #expect(ids(Reminders(), m, at: t0 + 600).isEmpty)
-    #expect(Reminders().late(m, now: t0 + 600, state: State()).isEmpty)
+    var r = Reminders()
+    for i in 0..<3 {
+        let at = t0 + Double(i * 330)
+        #expect(ids(r, m, at: at) == ["a"])
+        #expect(!r.isFinal(m, limit: 3))
+        r.unanswered(m, now: at + 30, limit: 3)
+        #expect(ids(r, m, at: at + 329).isEmpty)
+    }
+    #expect(ids(r, m, at: t0 + 990) == ["a"])
+    #expect(r.isFinal(m, limit: 3))
+    r.unanswered(m, now: t0 + 1020, limit: 3)
+    #expect(ids(r, m, at: t0 + 3000).isEmpty)
+    #expect(r.late(m, now: t0 + 1020, state: State()).isEmpty)
 }
 
-@Test func autoSnoozeKeepsTheLimitButUserSnoozeLiftsIt() {
+@Test func userSnoozeStartsTheRepeatsAnew() {
     let m = [meeting("a", minutes: 60)]
-    var auto = Reminders()
-    auto.snooze(m, minutes: 5, now: t0 + 400, byUser: false)
-    #expect(ids(auto, m, at: t0 + 700).isEmpty)
-
-    var user = Reminders()
-    user.snooze(m, minutes: 5, now: t0 + 400, byUser: true)
-    #expect(ids(user, m, at: t0 + 699).isEmpty)
-    #expect(ids(user, m, at: t0 + 700) == ["a"])
-    #expect(user.late(m, now: t0 + 1800, state: State()).map(\.eventId) == ["a"])
-    #expect(ids(user, m, at: t0 + 3600).isEmpty)
+    var r = Reminders()
+    r.unanswered(m, now: t0 + 30, limit: 1)
+    #expect(r.isFinal(m, limit: 1))
+    r.snooze(m, minutes: 5, now: t0 + 330)
+    #expect(!r.isFinal(m, limit: 1))
+    #expect(ids(r, m, at: t0 + 630) == ["a"])
 }
 
 @Test func decisionsAndIgnoreSilenceTheReminder() {
@@ -119,7 +125,7 @@ private func ids(_ r: Reminders, _ ms: [Meeting], at now: Date, state s: State =
 
 @Test func movedMeetingRemindsAgain() {
     var r = Reminders()
-    r.snooze([meeting("a")], minutes: 60, now: t0, byUser: true)
+    r.snooze([meeting("a")], minutes: 60, now: t0)
     #expect(ids(r, [meeting("a", at: t0 + 600)], at: t0 + 600) == ["a"])
 }
 
@@ -138,7 +144,7 @@ private func ids(_ r: Reminders, _ ms: [Meeting], at now: Date, state s: State =
 @Test func okStopsRingingAndLateness() {
     let m = meeting("ok")
     var r = Reminders()
-    r.snooze([m], minutes: 5, now: t0, byUser: true)
+    r.snooze([m], minutes: 5, now: t0)
     #expect(r.late([m], now: t0 + 60, state: State()).count == 1)
     r.acknowledge([m])
     #expect(r.reminding([m], now: t0 + 400, state: State(), config: Config()).isEmpty)

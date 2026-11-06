@@ -500,6 +500,7 @@ struct ReminderBar: View {
         HStack(spacing: 6) {
             Button { app.acknowledge() } label: {
                 Text("ОК").fontWeight(.semibold).foregroundStyle(Ink.primary).padding(.horizontal, 10).padding(.vertical, 3)
+                    .background(alignment: .leading) { countdown(final: true) }
             }
             .buttonStyle(Hover(padding: 0))
             .plate()
@@ -513,18 +514,10 @@ struct ReminderBar: View {
     private var snooze: some View {
         HStack(spacing: 0) {
             Button { app.snooze(5) } label: {
-                TimelineView(.animation) { context in
-                    Text("Отложить на 5 мин")
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(alignment: .leading) {
-                            GeometryReader { g in
-                                Rectangle()
-                                    .fill(ink(0xFFC873))
-                                    .frame(width: g.size.width * app.autoSnoozeProgress(at: context.date))
-                            }
-                        }
-                }
+                Text("Отложить на 5 мин")
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(alignment: .leading) { countdown(final: false) }
             }
             .buttonStyle(Hover(padding: 0))
             Divider().frame(height: 16)
@@ -536,6 +529,18 @@ struct ReminderBar: View {
         }
         .foregroundStyle(Ink.primary)
         .plate()
+    }
+
+    /// Индикатор автоповтора за 30 секунд — под кнопкой, которую нажмёт молчание: «Отложить», а в последний
+    /// раз — «ОК».
+    private func countdown(final: Bool) -> some View {
+        TimelineView(.animation) { context in
+            GeometryReader { g in
+                Rectangle()
+                    .fill(ink(0xFFC873))
+                    .frame(width: app.isFinalRing == final ? g.size.width * app.autoSnoozeProgress(at: context.date) : 0)
+            }
+        }
     }
 
     private var menu: some View {
