@@ -90,7 +90,8 @@ func ruler(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), avail
                 need = max(need, neededHeight(m, lines: lines) * CGFloat(length / m.end.timeIntervalSince(m.start)))
             }
             if day.gaps.contains(where: { $0.start <= a && b <= $0.end }) { need = max(need, 24) }
-            if a == day.start || b == day.end { need = max(need, 20) }
+            // Поля дня — ровно под подпись края, при любом масштабе: иначе в редкий день над шкалой пустая строка.
+            if a == day.start || b == day.end { need = 20 }
             y += need
             stops.append((b, y))
         }
