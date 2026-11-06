@@ -4,7 +4,7 @@ DOMAIN := gui/$(shell id -u)
 DEMO := $(CURDIR)/.build/demo
 BUTLER := CFFIXED_USER_HOME=$(DEMO) $(APP)/Contents/MacOS/Butler --offline
 
-.PHONY: build test app install uninstall sounds screens
+.PHONY: build test cert app install uninstall sounds screens
 
 build:
 	swift build -c release
@@ -20,7 +20,24 @@ app: build
 	mkdir -p $(APP)/Contents/MacOS
 	cp .build/release/Butler $(APP)/Contents/MacOS/Butler
 	cp Support/Info.plist $(APP)/Contents/Info.plist
-	codesign --force --sign - $(APP)
+	@if security find-certificate -c Butler >/dev/null 2>&1; then \
+		codesign --force --sign Butler $(APP); \
+	else \
+		codesign --force --sign - $(APP); \
+		echo "Подписано ad-hoc: разрешения macOS слетят после пересборки. Выполните make cert"; \
+	fi
+
+# Постоянная подпись: macOS узнаёт Butler от сборки к сборке и помнит выданные разрешения — доступ к
+# календарям. Сертификат самоподписанный, в связке ключей входа; создаётся один раз.
+cert:
+	@if security find-certificate -c Butler >/dev/null 2>&1; then echo "Сертификат Butler уже есть"; exit 0; fi; \
+	dir=$$(mktemp -d); \
+	/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj "/CN=Butler" \
+		-addext "keyUsage=critical,digitalSignature" -addext "extendedKeyUsage=critical,codeSigning" \
+		-keyout $$dir/key.pem -out $$dir/cert.pem 2>/dev/null && \
+	/usr/bin/openssl pkcs12 -export -inkey $$dir/key.pem -in $$dir/cert.pem -name Butler -passout pass:butler -out $$dir/butler.p12 && \
+	security import $$dir/butler.p12 -k $(HOME)/Library/Keychains/login.keychain-db -P butler -T /usr/bin/codesign; \
+	status=$$?; rm -rf $$dir; exit $$status
 
 install: app
 	mkdir -p $(HOME)/Applications
