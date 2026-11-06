@@ -38,3 +38,15 @@ private func event(_ id: String, at start: Date, organizer: String = "ivanov@exa
     #expect(symbol(type: .calDAV, title: "Holidays in Russia") == "flag")
     #expect(symbol(type: .calDAV, title: "Работа") == nil)
 }
+
+/// Полоса событий дня не шире двух строк: иначе праздники и дни рождения съели бы шкалу.
+@Test func allDayChipsFitTwoLines() {
+    let line: CGFloat = 300
+    func shown(_ widths: [CGFloat]) -> Int { packed(widths, available: line, plus: 30, spacing: 4) }
+    #expect(shown([]) == 0)
+    #expect(shown([80, 80]) == 2)
+    // Шесть плашек по трети строки в две строки не влезают: четыре и «+N».
+    #expect(shown(Array(repeating: line / 3, count: 6)) == 4)
+    #expect(shown([line * 2]) == 1)
+    #expect(shown(Array(repeating: line * 2, count: 3)) == 1)
+}
