@@ -278,9 +278,9 @@ struct DayView: View {
             } else if meetings != nil {
                 Text("Свободный день").font(Ink.title).foregroundStyle(Ink.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if app.config.mailboxes.isEmpty {
+            } else if app.config.mailboxes.isEmpty && app.config.calendars.isEmpty {
                 VStack(spacing: 4) {
-                    Text("Нет ящиков — задайте их в настройках").font(Ink.title).foregroundStyle(Ink.secondary)
+                    Text("Нет ящиков и календарей — задайте их в настройках").font(Ink.title).foregroundStyle(Ink.secondary)
                     Button("Настройки") { app.openSettings() }.buttonStyle(Hover(padding: 6)).foregroundStyle(Ink.accent)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

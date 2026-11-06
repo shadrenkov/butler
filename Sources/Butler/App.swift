@@ -330,15 +330,19 @@ final class App: NSObject, NSApplicationDelegate {
         calendarsChanged()
     }
 
-    /// Почему нет расписания: ящиков нет или ни один ещё не ответил.
+    /// Почему нет расписания: ни ящиков, ни календарей, ни один ящик ещё не ответил или у одних календарей нет доступа.
     var scheduleError: String? {
-        if config.mailboxes.isEmpty { return "нет ящиков — задайте их в настройках" }
+        if config.mailboxes.isEmpty {
+            return config.calendars.isEmpty ? "нет ящиков и календарей — задайте их в настройках"
+                : hasCalendarAccess ? nil : "нет доступа к календарям Mac"
+        }
         return config.mailboxes.compactMap { state.calendar[$0.address]?.failure }.first.map(\.text)
     }
 
-    /// Получено ли хоть что-то хоть из одного ящика — иначе пустой день — это не «свободный день».
+    /// Получено ли хоть что-то хоть из одного ящика или есть ли календари Mac — иначе пустой день — это не
+    /// «свободный день».
     private var hasSchedule: Bool {
-        config.mailboxes.contains { state.calendar[$0.address]?.success != nil }
+        config.mailboxes.contains { state.calendar[$0.address]?.success != nil } || (!config.calendars.isEmpty && hasCalendarAccess)
     }
 
     /// Последний звонок: без ответа сработает «ОК», а не «Отложить».
@@ -564,10 +568,11 @@ final class App: NSObject, NSApplicationDelegate {
 
     var isShowingToday: Bool { shownDay == today() }
 
-    /// Встречи показанного дня; `nil` — его расписание ещё не получено. Дни окна — из кэша ящиков.
+    /// Встречи показанного дня; `nil` — его расписание ещё не получено. Дни окна — из кэша ящиков, а без
+    /// ящиков любой день — из одних календарей Mac.
     var shownMeetings: [Meeting]? {
         if isShowingToday { return hasSchedule ? meetings : nil }
-        if window.contains(shownDay) { return hasSchedule ? visible(assembled(shownDay)) : nil }
+        if window.contains(shownDay) || config.mailboxes.isEmpty { return hasSchedule ? visible(assembled(shownDay)) : nil }
         return dayBoxes[shownDay].map { visible(assembled($0, shownDay)) }
     }
 
@@ -586,6 +591,11 @@ final class App: NSObject, NSApplicationDelegate {
     /// ящиков, у которых всё в порядке: остановленный или ждущий конца троттлинга ящик не трогается.
     func show(_ day: String) {
         shownDay = day
+        // Без ящиков читать нечего: день собирается из календарей Mac при показе.
+        if config.mailboxes.isEmpty {
+            dayErrors[day] = scheduleError
+            return
+        }
         guard !window.contains(day), currentTime().timeIntervalSince(daysAt[day] ?? .distantPast) > 600,
               let (from, to) = bounds(day) else { return }
         // День из свежего месяца — без своего чтения.
@@ -675,9 +685,10 @@ final class App: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Встречи дня для месяца: день окна — из кэша окна, остальные — из прочитанного месяца; `nil` — данных нет.
+    /// Встречи дня для месяца: день окна — из кэша окна, остальные — из прочитанного месяца, а без ящиков — из
+    /// одних календарей Mac; `nil` — данных нет.
     func monthMeetings(_ day: String) -> [Meeting]? {
-        if window.contains(day) && hasSchedule { return visible(assembled(day)) }
+        if (window.contains(day) || config.mailboxes.isEmpty) && hasSchedule { return visible(assembled(day)) }
         guard let read = monthRead(day) else { return nil }
         return visible(assembled(read.boxes, day))
     }
