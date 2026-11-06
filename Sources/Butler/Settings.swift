@@ -430,7 +430,7 @@ struct SettingsView: View {
     private var calendars: some View {
         section("Календари") {
             Rows {
-                Row(symbol: "touchid", title: "Ящики Exchange", summary: count(app.config.mailboxes.count, "ящик", "ящика", "ящиков")) {
+                Row(symbol: "touchid", title: "Ящики Exchange", summary: "\(app.config.mailboxes.count)") {
                     Task {
                         let reason = "показать пароли ящиков Exchange"
                         if (try? await LAContext().evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)) == true {
@@ -450,13 +450,6 @@ struct SettingsView: View {
 }
 
 enum Dialog { case vip, hidden, mailboxes, calendars }
-
-/// «1 ящик», «3 ящика», «5 ящиков».
-private func count(_ n: Int, _ one: String, _ few: String, _ many: String) -> String {
-    let (ten, hundred) = (n % 10, n % 100)
-    let word = ten == 1 && hundred != 11 ? one : (2...4).contains(ten) && !(12...14).contains(hundred) ? few : many
-    return "\(n) \(word)"
-}
 
 /// Строки-переходы во всплывающие окна — в белой рамке, как списки.
 private struct Rows<Content: View>: View {
