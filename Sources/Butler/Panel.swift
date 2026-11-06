@@ -270,7 +270,7 @@ struct DayView: View {
             notices
             let allDay = (meetings ?? []).filter(\.isAllDay)
             if !allDay.isEmpty {
-                Chips(app: app, meetings: allDay, width: width - 24 + 2 * chipPadding)
+                Chips(app: app, meetings: allDay.sorted { $0.subject.localizedStandardCompare($1.subject) == .orderedAscending }, width: width - 24 + 2 * chipPadding)
             }
             if let meetings, meetings.contains(where: { !$0.isAllDay }) {
                 GeometryReader { geo in
@@ -491,7 +491,7 @@ func packed(_ widths: [CGFloat], available: CGFloat, plus: CGFloat, spacing: CGF
 private let chipPadding: CGFloat = 6
 private let chipIcon: CGFloat = 12
 private let chipSpacing: CGFloat = 4
-private let chipLine: CGFloat = 15
+private let chipLine: CGFloat = 19
 
 /// Ширина плашки по тексту — до раскладки: `Flow` не умеет сказать, сколько уместил.
 private func chipWidth(_ text: String, icon: Bool = true) -> CGFloat {
@@ -499,7 +499,8 @@ private func chipWidth(_ text: String, icon: Bool = true) -> CGFloat {
     return 2 * chipPadding + label + (icon ? chipIcon + chipSpacing : 0)
 }
 
-/// События дня над шкалой — плашки без фона, сколько строк влезает в четверть окна; остальные — под «+N».
+/// События дня над шкалой — без фона. Влезают в четверть окна по одному в строке — так и стоят; не влезают —
+/// уплотняются по нескольку в строку, остальные — под «+N».
 struct Chips: View {
     let app: App
     let meetings: [Meeting]
@@ -507,23 +508,27 @@ struct Chips: View {
     @SwiftUI.State private var showsAll = false
 
     var body: some View {
-        // Целиком в одну строку не влезают — плашки не шире половины строки: два длинных названия встают
-        // рядом, обрезанными, и строк выходит меньше.
-        let full = meetings.map { chipWidth($0.subject) }
-        let line = full.reduce(0, +) + chipSpacing * CGFloat(full.count - 1) <= width
-        let widths = line ? full : full.map { min($0, (width - chipSpacing) / 2) }
         let lines = max(2, Int(windowHeight() / 4 / chipLine))
-        let shown = packed(widths, available: width, plus: chipWidth("+\(meetings.count)", icon: false), spacing: chipSpacing, lines: lines)
-        Flow(spacing: chipSpacing) {
-            ForEach(Array(zip(meetings, widths).prefix(shown)), id: \.0.id) { chip in
-                Chip(app: app, meeting: chip.0, width: chip.1)
-            }
-            if shown < meetings.count {
-                Button("+\(meetings.count - shown)") { showsAll.toggle() }
-                    .buttonStyle(Hover(padding: chipPadding))
-                    .chip()
-                    .help("Все события дня")
-                    .popover(isPresented: $showsAll, arrowEdge: .leading) { all }
+        let full = meetings.map { min(chipWidth($0.subject), width) }
+        Group {
+            if meetings.count <= lines {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(zip(meetings, full)), id: \.0.id) { Chip(app: app, meeting: $0.0, width: $0.1) }
+                }
+            } else {
+                // Плотно — не шире половины строки: два длинных названия встают рядом, обрезанными.
+                let widths = full.map { min($0, (width - chipSpacing) / 2) }
+                let shown = packed(widths, available: width, plus: chipWidth("+\(meetings.count)", icon: false), spacing: chipSpacing, lines: lines)
+                Flow(spacing: chipSpacing) {
+                    ForEach(Array(zip(meetings, widths).prefix(shown)), id: \.0.id) { Chip(app: app, meeting: $0.0, width: $0.1) }
+                    if shown < meetings.count {
+                        Button("+\(meetings.count - shown)") { showsAll.toggle() }
+                            .buttonStyle(Hover(padding: chipPadding))
+                            .chip()
+                            .help("Все события дня")
+                            .popover(isPresented: $showsAll, arrowEdge: .leading) { all }
+                    }
+                }
             }
         }
         .font(Ink.body)
