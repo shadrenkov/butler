@@ -490,7 +490,7 @@ private struct Contact: View {
 func allDayText(_ start: Date, _ end: Date) -> String {
     let last = end - 1
     let calendar = Calendar.current
-    if calendar.isDate(start, inSameDayAs: last) { return "весь день" }
+    if calendar.isDate(start, inSameDayAs: last) { return "Весь день" }
     let style = Date.FormatStyle.dateTime.day().month(.abbreviated).locale(Locale(identifier: "ru_RU"))
     if calendar.isDate(start, equalTo: last, toGranularity: .month) {
         return "\(calendar.component(.day, from: start))–\(last.formatted(style))"
@@ -555,9 +555,6 @@ struct Info: View {
                 }
                 .frame(maxHeight: 280)
                 .fixedSize(horizontal: false, vertical: true)
-            }
-            if meeting.attendees?.isEmpty != false && meeting.description == nil {
-                Text("Ни описания, ни участников").font(Ink.body).foregroundStyle(Ink.tertiary)
             }
             Divider()
             actions
