@@ -31,6 +31,8 @@ struct Config: Decodable {
     var autoOpenSeconds: Double = 30
     /// Ящики Exchange по порядку: из двух копий одной встречи остаётся копия ящика выше.
     var mailboxes: [Mailbox] = []
+    /// Включённые календари Mac — `mac:<calendarIdentifier>`, в порядке включения. Все они идут после ящиков.
+    var calendars: [String] = []
     /// VIP-контакты — фрагменты имён: «Иванов Пётр» находит «Иванов Пётр Сергеевич». Встреча VIP, если такой
     /// человек её организует или в ней участвует. Ключ называется по-старому.
     var vipOrganizers: [String] = []
@@ -90,6 +92,7 @@ struct Config: Decodable {
         autoOpenMTSLink = try value(.autoOpenMTSLink, autoOpenMTSLink)
         autoOpenSeconds = try value(.autoOpenSeconds, autoOpenSeconds)
         mailboxes = try value(.mailboxes, mailboxes)
+        calendars = try value(.calendars, calendars)
         vipOrganizers = try value(.vipOrganizers, vipOrganizers).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
         vipMeetings = try value(.vipMeetings, vipMeetings)
         // Строка не в виде даты — опечатка в файле: отбрасывается, конфиг остаётся годным.
@@ -101,7 +104,7 @@ struct Config: Decodable {
     private enum CodingKeys: String, CodingKey {
         case reminderOffsetSeconds, vipReminderOffsetSeconds, reminderRepeats, homeTimeZone, showHomeTime, hidden
         case playAtDesk, soundAtDesk, playAway, soundAway, awayVolume, awayRepeats, playInCall, soundInCall
-        case awayAfterMinutes, autoOpenMTSLink, autoOpenSeconds, mailboxes, vipOrganizers, vipMeetings, markedDays
+        case awayAfterMinutes, autoOpenMTSLink, autoOpenSeconds, mailboxes, calendars, vipOrganizers, vipMeetings, markedDays
         case wakeUpHours, wakeUpBlinkHours
     }
 

@@ -1,4 +1,5 @@
 import AppKit
+import EventKit
 import Observation
 
 /// Строка меню, секундный тик и связывание всего: расписание → напоминания → окно и звук.
@@ -22,7 +23,8 @@ final class App: NSObject, NSApplicationDelegate {
         // Карточка дня сдвигается по стопке — тень прозрачного окна пересчитывается после сдвига.
         didSet { DispatchQueue.main.async { [weak self] in self?.panel?.invalidateShadow() } }
     }
-    var days: [String: Day] = [:]
+    /// Боксы ящиков дней за окном: встречи собираются при показе — так в них сразу видны календари Mac.
+    var dayBoxes: [String: [String: Box]] = [:]
     /// Когда получены расписания других дней и чем кончился последний неудачный запрос каждого.
     var daysAt: [String: Date] = [:]
     var dayErrors: [String: String] = [:]
@@ -58,6 +60,10 @@ final class App: NSObject, NSApplicationDelegate {
     /// Прочитанные месяцы — в памяти, как дни за окном, и идущее чтение — для индикатора.
     var months: [String: MonthRead] = [:]
     var monthLoad: MonthLoad?
+    /// Встречи календарей Mac по дням — в памяти, не на диске: у системы они и так есть. Сбрасываются по
+    /// изменению в календарях, смене галочек и раз в минуту — так виден и отозванный доступ. Наблюдаемы: сброс
+    /// перерисовывает и день за окном, и месяц.
+    private var macDays: [String: [String: Box]] = [:]
     /// Когда началась последняя проверка расписания и с какого момента идёт обращение к Exchange — для колечка
     /// вокруг точки связи.
     var polledAt: Date?
@@ -168,6 +174,10 @@ final class App: NSObject, NSApplicationDelegate {
 
         // Кэш — сразу, ещё до сервера.
         meetings = visible(assembled(today()))
+        // Хранилище EventKit появляется только с первым чтением календарей: без них подписка ничего не будит.
+        NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.calendarsChanged() }
+        }
         startPolling { [weak self] wake in Task { await self?.refresh(wake: wake) } }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
@@ -203,6 +213,7 @@ final class App: NSObject, NSApplicationDelegate {
         refreshing = true
         defer { refreshing = false }
         polledAt = .now
+        macDays = [:]
         state.calendar = state.calendar.filter { address, _ in config.mailboxes.contains { $0.address == address } }
         let now = Date.now
         let due = config.mailboxes.filter {
@@ -283,9 +294,29 @@ final class App: NSObject, NSApplicationDelegate {
         (0...7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: currentTime()).map(dayString) }
     }
 
-    /// День из кэшей ящиков — без скрытых.
+    /// День из кэшей ящиков и календарей Mac.
     private func assembled(_ day: String) -> [Meeting] {
-        assemble(state.calendar, order: config.mailboxes.map(\.address), day: day, config: config)
+        assembled(state.calendar, day)
+    }
+
+    /// Единственная сборка дня: боксы ящиков вместе с боксами календарей Mac. Ящики идут раньше календарей —
+    /// из двух копий одной встречи остаётся копия Exchange.
+    private func assembled(_ boxes: [String: Box], _ day: String) -> [Meeting] {
+        assemble(boxes.merging(macBoxes(day)) { a, _ in a }, order: config.mailboxes.map(\.address) + config.calendars, day: day, config: config)
+    }
+
+    private func macBoxes(_ day: String) -> [String: Box] {
+        if let boxes = macDays[day] { return boxes }
+        let boxes = Butler.macBoxes(day, keys: config.calendars)
+        macDays[day] = boxes
+        return boxes
+    }
+
+    /// Календари Mac изменились — в системе, галочками или доступом: встречи собираются заново, без Exchange.
+    func calendarsChanged() {
+        macDays = [:]
+        meetings = visible(assembled(today()))
+        tick()
     }
 
     /// Почему нет расписания: ящиков нет или ни один ещё не ответил.
@@ -526,7 +557,7 @@ final class App: NSObject, NSApplicationDelegate {
     var shownMeetings: [Meeting]? {
         if isShowingToday { return hasSchedule ? meetings : nil }
         if window.contains(shownDay) { return hasSchedule ? visible(assembled(shownDay)) : nil }
-        return days[shownDay]?.events
+        return dayBoxes[shownDay].map { visible(assembled($0, shownDay)) }
     }
 
     /// Показать день со сдвигом от показанного: −1 — предыдущий, +1 — следующий.
@@ -548,7 +579,7 @@ final class App: NSObject, NSApplicationDelegate {
               let (from, to) = bounds(day) else { return }
         // День из свежего месяца — без своего чтения.
         if let read = monthRead(day), read.failure == nil, currentTime().timeIntervalSince(read.at) < 600 {
-            days[day] = Day(date: day, events: visible(assemble(read.boxes, order: config.mailboxes.map(\.address), day: day, config: config)))
+            dayBoxes[day] = read.boxes
             (daysAt[day], dayErrors[day]) = (read.at, nil)
             return
         }
@@ -574,7 +605,7 @@ final class App: NSObject, NSApplicationDelegate {
                 dayErrors[day] = failure.text
                 return
             }
-            days[day] = Day(date: day, events: visible(assemble(boxes, order: config.mailboxes.map(\.address), day: day, config: config)))
+            dayBoxes[day] = boxes
             daysAt[day] = currentTime()
         }
     }
@@ -637,7 +668,7 @@ final class App: NSObject, NSApplicationDelegate {
     func monthMeetings(_ day: String) -> [Meeting]? {
         if window.contains(day) && hasSchedule { return visible(assembled(day)) }
         guard let read = monthRead(day) else { return nil }
-        return visible(assemble(read.boxes, order: config.mailboxes.map(\.address), day: day, config: config))
+        return visible(assembled(read.boxes, day))
     }
 
     /// Самое свежее чтение, захватившее день: чтение месяца покрывает его сетку, поэтому день с края —
@@ -861,11 +892,10 @@ final class App: NSObject, NSApplicationDelegate {
             json["hidden"] = hidden
         }
         meetings = visible(meetings)
-        days = days.mapValues(visible)
         tick()
     }
 
-    /// Вернуть скрытую встречу: сегодняшний день берётся из кэша без фильтра, другие дни перечитаются при показе.
+    /// Вернуть скрытую встречу: дни собираются из кэша без фильтра — заново ничего не читается.
     func unhide(_ key: String) {
         (config, configError) = Config.change { json in
             var hidden = json["hidden"] as? [String: Any] ?? [:]
@@ -874,8 +904,6 @@ final class App: NSObject, NSApplicationDelegate {
             json["hidden"] = hidden
         }
         meetings = visible(assembled(today()))
-        days = [:]
-        daysAt = [:]
         tick()
     }
 
@@ -906,16 +934,11 @@ final class App: NSObject, NSApplicationDelegate {
         guard configError == nil else { return }
         (config, configError) = Config.change(edit)
         meetings = marked(meetings, config)
-        days = days.mapValues { Day(date: $0.date, events: marked($0.events, config)) }
         tick()
     }
 
     private func visible(_ events: [Meeting]) -> [Meeting] {
         events.filter { config.hidden[$0.ignoreKey] == nil }
-    }
-
-    private func visible(_ day: Day) -> Day {
-        Day(date: day.date, events: visible(day.events))
     }
 
     // Настройки.
