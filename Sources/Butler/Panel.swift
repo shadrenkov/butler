@@ -583,19 +583,18 @@ private struct Chip: View {
 /// Первый запуск: внизу карточки — «Добавьте ящики и календари в настройках», и от надписи дугой вправо вниз —
 /// стрелка к шестерёнке. Нарисована тем же пунктиром, что часы на шкале, — как карандашом на листе.
 private struct Welcome: View {
-    private let lines = ["Добавьте ящики и календари", "в настройках"]
+    private let text = "Добавьте ящики и календари в настройках"
 
     var body: some View {
         GeometryReader { geo in
             let (w, h) = (geo.size.width, geo.size.height)
-            let font = NSFont.systemFont(ofSize: 10, weight: .semibold)
-            let width = lines.map { NSString(string: $0).size(withAttributes: [.font: font]).width }.max() ?? 0
+            let width = NSString(string: text).size(withAttributes: [.font: NSFont.systemFont(ofSize: 10)]).width
             // Шестерёнка — в 12 pt от правого и нижнего края, сама около 14 pt. Надпись выше неё — чтобы дуга читалась;
             // стрелка — от правого края надписи, с середины по высоте.
             let middle = h - 80
             let start = CGPoint(x: w / 2 + width / 2 + 6, y: middle)
             let end = CGPoint(x: w - 19, y: h - 30)
-            Text(lines.joined(separator: "\n")).font(Ink.title).foregroundStyle(Ink.secondary).multilineTextAlignment(.center)
+            Text(text).font(Ink.body).foregroundStyle(Ink.secondary)
                 .position(x: w / 2, y: middle)
             Path { path in
                 path.move(to: start)
