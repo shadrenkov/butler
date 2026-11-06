@@ -270,7 +270,7 @@ struct DayView: View {
             notices
             let allDay = (meetings ?? []).filter(\.isAllDay)
             if !allDay.isEmpty {
-                Chips(app: app, meetings: allDay, width: width - 24)
+                Chips(app: app, meetings: allDay, width: width - 24 + 2 * chipPadding)
             }
             if let meetings, meetings.contains(where: { !$0.isAllDay }) {
                 GeometryReader { geo in
@@ -469,9 +469,9 @@ struct DayView: View {
     }
 }
 
-/// Сколько плашек уместить в две строки при жадном переносе: все, если влезают, иначе столько, чтобы рядом
+/// Сколько плашек уместить в `lines` строк при жадном переносе: все, если влезают, иначе столько, чтобы рядом
 /// встала плашка «+N» шириной `plus`. Плашка шире строки занимает строку целиком — её название обрежется.
-func packed(_ widths: [CGFloat], available: CGFloat, plus: CGFloat, spacing: CGFloat) -> Int {
+func packed(_ widths: [CGFloat], available: CGFloat, plus: CGFloat, spacing: CGFloat, lines limit: Int) -> Int {
     func fits(_ widths: [CGFloat]) -> Bool {
         var (lines, x) = (1, CGFloat(0))
         for width in widths.map({ min($0, available) }) {
@@ -481,16 +481,17 @@ func packed(_ widths: [CGFloat], available: CGFloat, plus: CGFloat, spacing: CGF
                 x += (x > 0 ? spacing : 0) + width
             }
         }
-        return lines <= 2
+        return lines <= limit
     }
     if fits(widths) { return widths.count }
     return (0..<widths.count).last { fits(Array(widths.prefix($0)) + [plus]) } ?? 0
 }
 
-/// Поля плашки, значок и зазор между ними и плашками.
+/// Поля плашки, значок и зазор между ними и плашками; высота строки плашек.
 private let chipPadding: CGFloat = 6
 private let chipIcon: CGFloat = 12
 private let chipSpacing: CGFloat = 4
+private let chipLine: CGFloat = 15
 
 /// Ширина плашки по тексту — до раскладки: `Flow` не умеет сказать, сколько уместил.
 private func chipWidth(_ text: String, icon: Bool = true) -> CGFloat {
@@ -498,7 +499,7 @@ private func chipWidth(_ text: String, icon: Bool = true) -> CGFloat {
     return 2 * chipPadding + label + (icon ? chipIcon + chipSpacing : 0)
 }
 
-/// События дня над шкалой — плашки не больше чем в две строки, остальные — под «+N».
+/// События дня над шкалой — плашки без фона, сколько строк влезает в четверть окна; остальные — под «+N».
 struct Chips: View {
     let app: App
     let meetings: [Meeting]
@@ -507,12 +508,13 @@ struct Chips: View {
 
     var body: some View {
         // Целиком в одну строку не влезают — плашки не шире половины строки: два длинных названия встают
-        // рядом, обрезанными, и не отнимают у шкалы вторую строку.
+        // рядом, обрезанными, и строк выходит меньше.
         let full = meetings.map { chipWidth($0.subject) }
         let line = full.reduce(0, +) + chipSpacing * CGFloat(full.count - 1) <= width
         let widths = line ? full : full.map { min($0, (width - chipSpacing) / 2) }
-        let shown = packed(widths, available: width, plus: chipWidth("+\(meetings.count)", icon: false), spacing: chipSpacing)
-        Flow(spacing: chipSpacing, lineSpacing: chipSpacing) {
+        let lines = max(2, Int(windowHeight() / 4 / chipLine))
+        let shown = packed(widths, available: width, plus: chipWidth("+\(meetings.count)", icon: false), spacing: chipSpacing, lines: lines)
+        Flow(spacing: chipSpacing) {
             ForEach(Array(zip(meetings, widths).prefix(shown)), id: \.0.id) { chip in
                 Chip(app: app, meeting: chip.0, width: chip.1)
             }
@@ -526,6 +528,9 @@ struct Chips: View {
         }
         .font(Ink.body)
         .foregroundStyle(Ink.secondary)
+        // Поля плашек — под подсветку при наведении, а не зазор: текст стоит, где стояла строка с солнышком.
+        .padding(.vertical, -chipPadding / 2)
+        .padding(.horizontal, -chipPadding)
     }
 
     /// Все события дня — те же плашки, столбиком; щелчок по плашке — её подробности рядом.
@@ -569,9 +574,9 @@ private struct Chip: View {
 }
 
 extension View {
-    /// Плашка события дня — оттиск на листе, без цвета календаря: чуть темнее бумаги, под мышью темнеет ещё.
+    /// Плашка события дня — без фона, как текст на листе; под мышью подсвечивается и курсор — рука.
     fileprivate func chip() -> some View {
-        background(RoundedRectangle(cornerRadius: 4).fill(.black.opacity(0.04))).pointerStyle(.link)
+        pointerStyle(.link)
     }
 }
 
