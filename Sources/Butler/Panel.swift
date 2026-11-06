@@ -268,8 +268,9 @@ struct DayView: View {
         VStack(alignment: .leading, spacing: 8) {
             header
             notices
-            ForEach((meetings ?? []).filter(\.isAllDay)) { m in
-                Label(m.subject, systemImage: "sun.max").font(Ink.body).foregroundStyle(Ink.secondary).lineLimit(1)
+            let allDay = (meetings ?? []).filter(\.isAllDay)
+            if !allDay.isEmpty {
+                Chips(app: app, meetings: allDay, width: width - 24)
             }
             if let meetings, meetings.contains(where: { !$0.isAllDay }) {
                 GeometryReader { geo in
@@ -465,6 +466,112 @@ struct DayView: View {
     private func staleTime(_ date: Date) -> String {
         guard dayString(date) != today() else { return hhmm(date) }
         return date.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "ru_RU"))) + " " + hhmm(date)
+    }
+}
+
+/// Сколько плашек уместить в две строки при жадном переносе: все, если влезают, иначе столько, чтобы рядом
+/// встала плашка «+N» шириной `plus`. Плашка шире строки занимает строку целиком — её название обрежется.
+func packed(_ widths: [CGFloat], available: CGFloat, plus: CGFloat, spacing: CGFloat) -> Int {
+    func fits(_ widths: [CGFloat]) -> Bool {
+        var (lines, x) = (1, CGFloat(0))
+        for width in widths.map({ min($0, available) }) {
+            if x > 0, x + spacing + width > available {
+                (lines, x) = (lines + 1, width)
+            } else {
+                x += (x > 0 ? spacing : 0) + width
+            }
+        }
+        return lines <= 2
+    }
+    if fits(widths) { return widths.count }
+    return (0..<widths.count).last { fits(Array(widths.prefix($0)) + [plus]) } ?? 0
+}
+
+/// Поля плашки, значок и зазор между ними и плашками.
+private let chipPadding: CGFloat = 6
+private let chipIcon: CGFloat = 12
+private let chipSpacing: CGFloat = 4
+
+/// Ширина плашки по тексту — до раскладки: `Flow` не умеет сказать, сколько уместил.
+private func chipWidth(_ text: String, icon: Bool = true) -> CGFloat {
+    let label = ceil(NSString(string: text).size(withAttributes: [.font: NSFont.systemFont(ofSize: 10)]).width) + 1
+    return 2 * chipPadding + label + (icon ? chipIcon + chipSpacing : 0)
+}
+
+/// События дня над шкалой — плашки не больше чем в две строки, остальные — под «+N».
+struct Chips: View {
+    let app: App
+    let meetings: [Meeting]
+    let width: CGFloat
+    @SwiftUI.State private var showsAll = false
+
+    var body: some View {
+        // Целиком в одну строку не влезают — плашки не шире половины строки: два длинных названия встают
+        // рядом, обрезанными, и не отнимают у шкалы вторую строку.
+        let full = meetings.map { chipWidth($0.subject) }
+        let line = full.reduce(0, +) + chipSpacing * CGFloat(full.count - 1) <= width
+        let widths = line ? full : full.map { min($0, (width - chipSpacing) / 2) }
+        let shown = packed(widths, available: width, plus: chipWidth("+\(meetings.count)", icon: false), spacing: chipSpacing)
+        Flow(spacing: chipSpacing, lineSpacing: chipSpacing) {
+            ForEach(Array(zip(meetings, widths).prefix(shown)), id: \.0.id) { chip in
+                Chip(app: app, meeting: chip.0, width: chip.1)
+            }
+            if shown < meetings.count {
+                Button("+\(meetings.count - shown)") { showsAll.toggle() }
+                    .buttonStyle(Hover(padding: chipPadding))
+                    .chip()
+                    .help("Все события дня")
+                    .popover(isPresented: $showsAll, arrowEdge: .leading) { all }
+            }
+        }
+        .font(Ink.body)
+        .foregroundStyle(Ink.secondary)
+    }
+
+    /// Все события дня — те же плашки, столбиком; щелчок по плашке — её подробности рядом.
+    private var all: some View {
+        VStack(alignment: .leading, spacing: chipSpacing) {
+            Text("События дня").font(Ink.title).foregroundStyle(Ink.primary).padding(.bottom, 4)
+            ForEach(meetings) { m in
+                Chip(app: app, meeting: m, width: min(chipWidth(m.subject), 260))
+            }
+        }
+        .font(Ink.body)
+        .foregroundStyle(Ink.secondary)
+        .padding(12)
+        .frame(width: 284, alignment: .leading)
+        .background(Ink.window)
+    }
+}
+
+/// Плашка события дня: значок по виду календаря и название в одну строку; щелчок — подробности.
+private struct Chip: View {
+    let app: App
+    let meeting: Meeting
+    let width: CGFloat
+    @SwiftUI.State private var open = false
+
+    var body: some View {
+        Button { open.toggle() } label: {
+            HStack(spacing: chipSpacing) {
+                Image(systemName: meeting.symbol ?? "sun.max").foregroundStyle(Ink.tertiary).frame(width: chipIcon)
+                Text(meeting.subject).lineLimit(1)
+            }
+            .frame(width: width - 2 * chipPadding, alignment: .leading)
+        }
+        .buttonStyle(Hover(padding: chipPadding))
+        .chip()
+        .help(meeting.subject)
+        .popover(isPresented: $open, arrowEdge: .leading) {
+            Info(app: app, meeting: meeting, look: .normal, showsJoin: false)
+        }
+    }
+}
+
+extension View {
+    /// Плашка события дня — оттиск на листе, без цвета календаря: чуть темнее бумаги, под мышью темнеет ещё.
+    fileprivate func chip() -> some View {
+        background(RoundedRectangle(cornerRadius: 4).fill(.black.opacity(0.04))).pointerStyle(.link)
     }
 }
 

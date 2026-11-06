@@ -415,21 +415,24 @@ private struct Description: NSViewRepresentable {
            iconColor: vip ? .white : Ink.secondary, action: action)
 }
 
-/// Имена в строку, как текст: что не влезает, целиком уходит на следующую строку.
-private struct Flow: Layout {
+/// Имена или плашки в строку, как текст: что не влезает, целиком уходит на следующую строку.
+struct Flow: Layout {
+    /// По умолчанию — ширина пробела в тексте этого размера.
+    var spacing: CGFloat = 2.3
+    var lineSpacing: CGFloat = 0
+
     private func places(_ subviews: Subviews, width: CGFloat) -> (points: [CGPoint], size: CGSize) {
-        let space: CGFloat = 2.3 // ширина пробела в тексте этого размера
         var points: [CGPoint] = []
         var (x, y, height, right): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
         for view in subviews {
             let size = view.sizeThatFits(.unspecified)
             if x > 0, x + size.width > width {
-                (x, y, height) = (0, y + height, 0)
+                (x, y, height) = (0, y + height + lineSpacing, 0)
             }
             points.append(CGPoint(x: x, y: y))
             right = max(right, x + size.width)
             height = max(height, size.height)
-            x += size.width + space
+            x += size.width + spacing
         }
         return (points, CGSize(width: right, height: y + height))
     }
@@ -482,8 +485,22 @@ private struct Contact: View {
     }
 }
 
-/// Всплывающие подробности: время по календарю и во втором поясе, участники, описание, редкие действия.
-private struct Info: View {
+/// Когда событие дня: «весь день», «3–7 нояб.» или «30 окт. – 2 нояб.». Кончается оно в полночь
+/// следующего дня, поэтому последний день — за секунду до конца.
+func allDayText(_ start: Date, _ end: Date) -> String {
+    let last = end - 1
+    let calendar = Calendar.current
+    if calendar.isDate(start, inSameDayAs: last) { return "весь день" }
+    let style = Date.FormatStyle.dateTime.day().month(.abbreviated).locale(Locale(identifier: "ru_RU"))
+    if calendar.isDate(start, equalTo: last, toGranularity: .month) {
+        return "\(calendar.component(.day, from: start))–\(last.formatted(style))"
+    }
+    return "\(start.formatted(style)) – \(last.formatted(style))"
+}
+
+/// Всплывающие подробности: время по календарю и во втором поясе, участники, описание, редкие действия и
+/// откуда встреча.
+struct Info: View {
     let app: App
     let meeting: Meeting
     let look: Look
@@ -491,10 +508,14 @@ private struct Info: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // «10:00–13:00 · GMT-3 04:00–07:00» — как этикетки на шкале.
-            (Text("\(hhmm(meeting.start))–\(hhmm(meeting.end))").foregroundStyle(Ink.secondary)
-                + homeLabel(meeting.start, to: meeting.end, config: app.config))
-                .font(Ink.title).monospacedDigit()
+            if meeting.isAllDay {
+                Text(allDayText(meeting.start, meeting.end)).font(Ink.title).foregroundStyle(Ink.secondary)
+            } else {
+                // «10:00–13:00 · GMT-3 04:00–07:00» — как этикетки на шкале.
+                (Text("\(hhmm(meeting.start))–\(hhmm(meeting.end))").foregroundStyle(Ink.secondary)
+                    + homeLabel(meeting.start, to: meeting.end, config: app.config))
+                    .font(Ink.title).monospacedDigit()
+            }
             if !meeting.organizerName.isEmpty {
                 // Звезда у организатора — сделать его VIP или убрать из VIP.
                 let vip = isVIPOrganizer(meeting.organizerName, app.config)
@@ -540,6 +561,10 @@ private struct Info: View {
             }
             Divider()
             actions
+            // Тихо, последней строкой: на шкале, в месяце и в строке меню источника нет.
+            if let source = meeting.source {
+                Text(source).font(Ink.body).foregroundStyle(Ink.tertiary).lineLimit(1)
+            }
         }
         .padding(12)
         .frame(width: 400)
@@ -547,34 +572,37 @@ private struct Info: View {
     }
 
     /// Внизу — крупные кругляши: подключиться; пропустить или вернуть эту встречу; у серии — пропустить
-    /// или вернуть все её встречи; VIP — серия или встреча; скрыть.
+    /// или вернуть все её встречи; VIP — серия или встреча; скрыть. У события дня нет ни напоминаний, ни
+    /// VIP-точек — только «Скрыть».
     private var actions: some View {
         // Второй строкой: в одну подпись про серию не влезает в свою долю ряда.
         let all = meeting.isRecurring ? "\nвсю серию" : ""
         return HStack(alignment: .top, spacing: 0) {
-            if showsJoin {
-                Action(symbol: "video.fill", title: "Подключиться", color: 0xE0743A, hoverColor: 0xC2531F, iconColor: .white) {
-                    app.join(meeting)
+            if !meeting.isAllDay {
+                if showsJoin {
+                    Action(symbol: "video.fill", title: "Подключиться", color: 0xE0743A, hoverColor: 0xC2531F, iconColor: .white) {
+                        app.join(meeting)
+                    }
                 }
+                if app.state.ignored[meeting.ignoreKey] != nil {
+                    Action(symbol: "bell.slash", count: meeting.isRecurring ? 2 : 1, title: "Вернуть" + all) { app.unignore(meeting.ignoreKey) }
+                } else {
+                    // «Свободную» в Outlook не вернуть: её пропуск записан там, а не в Butler.
+                    if look == .skipped && meeting.isFree != true {
+                        Action(symbol: "bell.slash", title: "Вернуть") { app.unskip(meeting) }
+                    } else if look != .past && look != .skipped {
+                        Action(symbol: "bell", title: "Пропустить") { app.skip(meeting) }
+                    }
+                    if meeting.isRecurring {
+                        Action(symbol: "bell", count: 2, title: "Пропустить" + all) { app.ignore(meeting) }
+                    }
+                }
+                // Залит, когда встреча VIP — по правилу или вручную; нажатие переопределяет правило.
+                let vip = meeting.isVIP
+                vipAction(vip, title: "VIP") { app.toggleVIPMeeting(meeting) }
+                    .help(meeting.isRecurring ? (vip ? "Серия больше не VIP" : "Все встречи серии — VIP")
+                                              : (vip ? "Встреча больше не VIP" : "Эта встреча — VIP"))
             }
-            if app.state.ignored[meeting.ignoreKey] != nil {
-                Action(symbol: "bell.slash", count: meeting.isRecurring ? 2 : 1, title: "Вернуть" + all) { app.unignore(meeting.ignoreKey) }
-            } else {
-                // «Свободную» в Outlook не вернуть: её пропуск записан там, а не в Butler.
-                if look == .skipped && meeting.isFree != true {
-                    Action(symbol: "bell.slash", title: "Вернуть") { app.unskip(meeting) }
-                } else if look != .past && look != .skipped {
-                    Action(symbol: "bell", title: "Пропустить") { app.skip(meeting) }
-                }
-                if meeting.isRecurring {
-                    Action(symbol: "bell", count: 2, title: "Пропустить" + all) { app.ignore(meeting) }
-                }
-            }
-            // Залит, когда встреча VIP — по правилу или вручную; нажатие переопределяет правило.
-            let vip = meeting.isVIP
-            vipAction(vip, title: "VIP") { app.toggleVIPMeeting(meeting) }
-                .help(meeting.isRecurring ? (vip ? "Серия больше не VIP" : "Все встречи серии — VIP")
-                                          : (vip ? "Встреча больше не VIP" : "Эта встреча — VIP"))
             Action(symbol: "trash", title: "Скрыть" + all) { app.hide(meeting) }
                 .help((meeting.isRecurring ? "Скрыть всю серию из расписания Butler" : "Скрыть из расписания Butler") + ". Вернуть можно в настройках")
         }
