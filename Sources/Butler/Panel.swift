@@ -279,12 +279,9 @@ struct DayView: View {
             } else if meetings != nil {
                 Text("Свободный день").font(Ink.title).foregroundStyle(Ink.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if app.config.mailboxes.isEmpty && app.config.calendars.isEmpty {
-                VStack(spacing: 4) {
-                    Text("Нет ящиков и календарей — задайте их в настройках").font(Ink.title).foregroundStyle(Ink.secondary)
-                    Button("Настройки") { app.openSettings() }.buttonStyle(Hover(padding: 6)).foregroundStyle(Ink.accent)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if isEmpty {
+                // Подсказка — внизу, у шестерёнки: см. `Welcome`.
+                Spacer()
             } else if let error = app.isShowingToday ? app.scheduleError : app.dayErrors[app.shownDay] {
                 Text("Расписание не получено: \(error)").font(Ink.body).foregroundStyle(Ink.alert)
                 Spacer()
@@ -295,6 +292,7 @@ struct DayView: View {
         .padding(12)
         .frame(width: width, height: windowHeight(), alignment: .topLeading)
         .background(Ink.window)
+        .overlay { if isEmpty { Welcome() } }
         .overlay(alignment: .bottomTrailing) {
             HStack(spacing: 2) {
                 if let trouble = trouble {
@@ -456,6 +454,11 @@ struct DayView: View {
 
     /// Короткая фраза у индикатора — в одну строку, влезает всегда: связи давно нет или день за окном не
     /// обновляется. Подробности — во всплывашке индикатора.
+    /// Ни ящиков, ни календарей: вместо дня — подсказка, куда идти.
+    private var isEmpty: Bool {
+        app.config.mailboxes.isEmpty && app.config.calendars.isEmpty
+    }
+
     private var trouble: String? {
         if app.window.contains(app.shownDay), let outage = app.currentOutage { return "Нет связи с \(staleTime(outage.since))" }
         if !app.window.contains(app.shownDay), let stale = app.freshness(of: app.shownDay) { return "День не обновлён с \(staleTime(stale.since))" }
@@ -574,6 +577,35 @@ private struct Chip: View {
         .popover(isPresented: $open, arrowEdge: .leading) {
             Info(app: app, meeting: meeting, look: .normal, showsJoin: false)
         }
+    }
+}
+
+/// Первый запуск: внизу карточки — «Добавьте ящики и календари в настройках», и от надписи дугой вправо вниз —
+/// стрелка к шестерёнке. Нарисована тем же пунктиром, что часы на шкале, — как карандашом на листе.
+private struct Welcome: View {
+    private let text = "Добавьте ящики и календари в настройках"
+
+    var body: some View {
+        GeometryReader { geo in
+            let (w, h) = (geo.size.width, geo.size.height)
+            let width = NSString(string: text).size(withAttributes: [.font: NSFont.systemFont(ofSize: 10, weight: .semibold)]).width
+            // Шестерёнка — в 12 pt от правого и нижнего края, сама около 14 pt. Надпись выше неё — чтобы дуга читалась.
+            let line = h - 80
+            let start = CGPoint(x: w / 2 + width / 2 + 6, y: line)
+            let end = CGPoint(x: w - 19, y: h - 30)
+            Text(text).font(Ink.title).foregroundStyle(Ink.secondary)
+                .position(x: w / 2, y: line)
+            Path { path in
+                path.move(to: start)
+                path.addQuadCurve(to: end, control: CGPoint(x: end.x, y: start.y))
+                // Наконечник — вдоль последнего отрезка дуги, то есть вниз.
+                path.move(to: CGPoint(x: end.x - 4, y: end.y - 6))
+                path.addLine(to: end)
+                path.addLine(to: CGPoint(x: end.x + 4, y: end.y - 6))
+            }
+            .stroke(Ink.tertiary, style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
+        }
+        .allowsHitTesting(false)
     }
 }
 
