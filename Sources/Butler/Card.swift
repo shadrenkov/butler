@@ -498,7 +498,8 @@ func allDayText(_ start: Date, _ end: Date) -> String {
     return "\(start.formatted(style)) – \(last.formatted(style))"
 }
 
-/// Всплывающие подробности: время по календарю и во втором поясе, участники, описание, редкие действия.
+/// Всплывающие подробности: время по календарю и во втором поясе, участники, описание, редкие действия и
+/// откуда встреча.
 struct Info: View {
     let app: App
     let meeting: Meeting
@@ -560,6 +561,10 @@ struct Info: View {
             }
             Divider()
             actions
+            // Тихо, последней строкой: на шкале, в месяце и в строке меню источника нет.
+            if let source = meeting.source {
+                Text(source).font(Ink.body).foregroundStyle(Ink.tertiary).lineLimit(1)
+            }
         }
         .padding(12)
         .frame(width: 400)
