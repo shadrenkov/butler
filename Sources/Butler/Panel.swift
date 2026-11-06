@@ -524,7 +524,6 @@ struct Chips: View {
                     if shown < meetings.count {
                         Button("+\(meetings.count - shown)") { showsAll.toggle() }
                             .buttonStyle(Hover(padding: chipPadding))
-                            .chip()
                             .help("Все события дня")
                             .popover(isPresented: $showsAll, arrowEdge: .leading) { all }
                     }
@@ -571,18 +570,10 @@ private struct Chip: View {
             .frame(width: width - 2 * chipPadding, alignment: .leading)
         }
         .buttonStyle(Hover(padding: chipPadding))
-        .chip()
         .help(meeting.subject)
         .popover(isPresented: $open, arrowEdge: .leading) {
             Info(app: app, meeting: meeting, look: .normal, showsJoin: false)
         }
-    }
-}
-
-extension View {
-    /// Плашка события дня — без фона, как текст на листе; под мышью подсвечивается и курсор — рука.
-    fileprivate func chip() -> some View {
-        pointerStyle(.link)
     }
 }
 
