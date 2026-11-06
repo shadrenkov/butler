@@ -508,13 +508,24 @@ struct Info: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if meeting.isAllDay {
-                Text(allDayText(meeting.start, meeting.end)).font(Ink.title).foregroundStyle(Ink.secondary)
-            } else {
-                // «10:00–13:00 · GMT-3 04:00–07:00» — как этикетки на шкале.
-                (Text("\(hhmm(meeting.start))–\(hhmm(meeting.end))").foregroundStyle(Ink.secondary)
-                    + homeLabel(meeting.start, to: meeting.end, config: app.config))
-                    .font(Ink.title).monospacedDigit()
+            HStack(spacing: 8) {
+                if meeting.isAllDay {
+                    Text(allDayText(meeting.start, meeting.end)).font(Ink.title).foregroundStyle(Ink.secondary)
+                } else {
+                    // «10:00–13:00 · GMT-3 04:00–07:00» — как этикетки на шкале.
+                    (Text("\(hhmm(meeting.start))–\(hhmm(meeting.end))").foregroundStyle(Ink.secondary)
+                        + homeLabel(meeting.start, to: meeting.end, config: app.config))
+                        .font(Ink.title).monospacedDigit()
+                }
+                Spacer(minLength: 0)
+                // Откуда встреча — тихо, справа: ящик или календарь без учётной записи; целиком — в подсказке.
+                // На шкале, в месяце и в строке меню источника нет.
+                if let source = meeting.source {
+                    Label(source.components(separatedBy: " · ").last ?? source, systemImage: "calendar")
+                        .labelStyle(Compact())
+                        .font(Ink.body).foregroundStyle(Ink.faded).lineLimit(1).truncationMode(.middle)
+                        .help(source)
+                }
             }
             if !meeting.organizerName.isEmpty {
                 // Звезда у организатора — сделать его VIP или убрать из VIP.
@@ -558,10 +569,6 @@ struct Info: View {
             }
             Divider()
             actions
-            // Тихо, последней строкой: на шкале, в месяце и в строке меню источника нет.
-            if let source = meeting.source {
-                Text(source).font(Ink.body).foregroundStyle(Ink.tertiary).lineLimit(1)
-            }
         }
         .padding(12)
         .frame(width: 400)
@@ -604,5 +611,12 @@ struct Info: View {
                 .help((meeting.isRecurring ? "Скрыть всю серию из расписания Butler" : "Скрыть из расписания Butler") + ". Вернуть можно в настройках")
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// Значок и текст вплотную — для тихих подписей.
+private struct Compact: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) { configuration.icon; configuration.title }
     }
 }
