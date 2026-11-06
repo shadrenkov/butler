@@ -81,6 +81,10 @@ struct Event: Codable, Equatable {
     let isCancelled: Bool
     let joinURL: URL?
     let description: String?
+    /// Откуда встреча, когда это не ящик Exchange: «Google · Работа». У Exchange — `nil`, подпись строит `assemble`.
+    var source: String? = nil
+    /// Значок события на весь день: `gift`, `flag`; `nil` — солнышко.
+    var symbol: String? = nil
 }
 
 /// Чем кончилось неудачное обращение — от этого зависит, когда пробовать снова.

@@ -19,6 +19,10 @@ struct Meeting: Codable, Identifiable, Equatable {
     let isOrganizer: Bool?
     /// В Outlook помечена «Показывать как: Свободен» — считается пропущенной.
     let isFree: Bool?
+    /// Откуда показанная копия: «Exchange · ivanov@example.com» или «Google · Работа» — только в подробностях.
+    var source: String? = nil
+    /// Значок события на весь день; `nil` — солнышко.
+    var symbol: String? = nil
 
     var isRecurring: Bool { seriesId != nil }
 
@@ -32,6 +36,7 @@ struct Meeting: Codable, Identifiable, Equatable {
         case eventId = "event_id", seriesId = "series_id", subject, start, end
         case isAllDay = "is_all_day", organizerName = "organizer_name", isVIP = "is_vip", isAccepted = "is_accepted"
         case joinURL = "join_url", attendees, description, isOrganizer = "is_organizer", isFree = "is_free"
+        case source, symbol
     }
 }
 
@@ -131,26 +136,28 @@ func bounds(_ day: String) -> (start: Date, end: Date)? {
 func assemble(_ boxes: [String: Box], order: [String], day: String, config: Config) -> [Meeting] {
     guard let (from, to) = bounds(day) else { return [] }
     struct Key: Hashable { let start: Date, end: Date, isAllDay: Bool, subject: String, organizer: String }
-    var kept: [Key: Event] = [:]
+    var kept: [Key: (event: Event, box: String)] = [:]
     var accepted: Set<Key> = []
     var organized: Set<Key> = []
     for address in order {
         for e in boxes[address]?.events ?? [] where e.start < to && e.end > from && !e.isCancelled {
             let key = Key(start: e.start, end: e.end, isAllDay: e.isAllDay, subject: e.subject, organizer: e.organizerAddress)
-            if kept[key] == nil { kept[key] = e }
+            if kept[key] == nil { kept[key] = (e, address) }
             if e.response == "Organizer" || e.response == "Accept" { accepted.insert(key) }
             if e.response == "Organizer" { organized.insert(key) }
         }
     }
     let own = Set(order.map { $0.lowercased() })
-    let meetings = kept.map { key, e in
-        Meeting(eventId: e.id, seriesId: e.uid, subject: e.subject, start: e.start, end: e.end, isAllDay: e.isAllDay,
+    let meetings = kept.map { key, copy in
+        let e = copy.event
+        return Meeting(eventId: e.id, seriesId: e.uid, subject: e.subject, start: e.start, end: e.end, isAllDay: e.isAllDay,
                 organizerName: e.organizerName, isVIP: false, isAccepted: accepted.contains(key), joinURL: e.joinURL,
                 attendees: e.attendees.filter {
                     let address = $0.address.lowercased()
                     return !own.contains(address) && address != e.organizerAddress.lowercased()
                 }.map { $0.name.isEmpty ? $0.address : $0.name },
-                description: e.description, isOrganizer: organized.contains(key), isFree: e.isFree)
+                description: e.description, isOrganizer: organized.contains(key), isFree: e.isFree,
+                source: e.source ?? "Exchange · \(copy.box)", symbol: e.symbol)
     }
     return marked(meetings.sorted { ($0.start, $0.eventId) < ($1.start, $1.eventId) }, config)
 }
