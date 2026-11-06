@@ -329,6 +329,7 @@ struct DayView: View {
                     case .vip: VIPDialog(app: app)
                     case .hidden: HiddenDialog(app: app)
                     case .mailboxes: MailboxesEditor(app: app)
+                    case .calendars: CalendarsDialog(app: app)
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: windowRadius))

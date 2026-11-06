@@ -319,6 +319,17 @@ final class App: NSObject, NSApplicationDelegate {
         tick()
     }
 
+    /// Галочка календаря Mac. Заодно забываются календари, которых в системе больше нет.
+    func toggleCalendar(_ key: String) {
+        guard configError == nil else { return }
+        let present = Set(macCalendars().map(Butler.key))
+        (config, configError) = Config.change { json in
+            let list = (json["calendars"] as? [String] ?? []).filter(present.contains)
+            json["calendars"] = list.contains(key) ? list.filter { $0 != key } : list + [key]
+        }
+        calendarsChanged()
+    }
+
     /// Почему нет расписания: ящиков нет или ни один ещё не ответил.
     var scheduleError: String? {
         if config.mailboxes.isEmpty { return "нет ящиков — задайте их в настройках" }
@@ -949,12 +960,13 @@ final class App: NSObject, NSApplicationDelegate {
         panel.makeKey()
     }
 
-    /// Ящики — сразу после Touch ID. Щелчок по системному запросу пароля закрывает окно как щелчок мимо него:
-    /// тогда оно открывается снова. Настройки за это время могло снять напоминание — тогда ящики не открываются.
-    func openMailboxes() {
+    /// Ящики — сразу после Touch ID, календари Mac — после запроса доступа. Щелчок по системному запросу
+    /// закрывает окно как щелчок мимо него: тогда оно открывается снова. Настройки за это время могло снять
+    /// напоминание — тогда окно не открывается.
+    func openDialog(_ dialog: Dialog) {
         guard settingsOpen else { return }
         if !panel.isVisible { panel.showAlert(soft: false) }
-        dialog = .mailboxes
+        self.dialog = dialog
         panel.makeKey()
     }
 

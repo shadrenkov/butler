@@ -286,7 +286,7 @@ struct SettingsView: View {
                     zone.disabled(!app.config.showHomeTime).padding(.leading, 18)
                 }
                 meetings
-                exchange
+                calendars
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .disabled(app.configError != nil)
@@ -426,18 +426,20 @@ struct SettingsView: View {
     }
 
     /// Ящики — тоже во всплывающем окне, но за Touch ID (значок — отпечаток): в нём пароли открытым текстом. Состояние ящиков —
-    /// на огоньке главного окна, здесь его нет.
-    private var exchange: some View {
-        section("Exchange") {
+    /// на огоньке главного окна, здесь его нет. Календари Mac — без Touch ID: паролей в них нет.
+    private var calendars: some View {
+        section("Календари") {
             Rows {
-                Row(symbol: "touchid", title: "Ящики", summary: count(app.config.mailboxes.count, "ящик", "ящика", "ящиков")) {
+                Row(symbol: "touchid", title: "Ящики Exchange", summary: count(app.config.mailboxes.count, "ящик", "ящика", "ящиков")) {
                     Task {
                         let reason = "показать пароли ящиков Exchange"
                         if (try? await LAContext().evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)) == true {
-                            app.openMailboxes()
+                            app.openDialog(.mailboxes)
                         }
                     }
                 }
+                Divider()
+                Row(symbol: "calendar", title: "Календари Mac", summary: "\(app.config.calendars.count)") { app.dialog = .calendars }
             }
         }
     }
@@ -447,7 +449,7 @@ struct SettingsView: View {
     }
 }
 
-enum Dialog { case vip, hidden, mailboxes }
+enum Dialog { case vip, hidden, mailboxes, calendars }
 
 /// «1 ящик», «3 ящика», «5 ящиков».
 private func count(_ n: Int, _ one: String, _ few: String, _ many: String) -> String {
@@ -513,7 +515,7 @@ func popup(_ title: String, @ViewBuilder _ content: () -> some View) -> some Vie
 }
 
 /// Список целиком, а длинный — с прокруткой, чтобы окно не вылезало за экран.
-private func fitting(_ list: some View) -> some View {
+func fitting(_ list: some View) -> some View {
     ViewThatFits(in: .vertical) {
         list
         ScrollView { list }
@@ -521,7 +523,7 @@ private func fitting(_ list: some View) -> some View {
 }
 
 /// «Готово» внизу справа всплывающего окна, и Escape.
-private func done(_ app: App) -> some View {
+func done(_ app: App) -> some View {
     HStack {
         Spacer()
         Button("Готово") { app.dialog = nil }

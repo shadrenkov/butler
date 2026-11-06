@@ -6,7 +6,7 @@ import SwiftUI
 /// и собираются тем же `assemble`.
 @MainActor let store = EKEventStore()
 
-/// Встречи Mac есть, только когда доступ дан полностью.
+/// Встречи Mac есть, только когда доступ дан полностью. Запрашивает его одно окно «Календари Mac».
 var hasCalendarAccess: Bool {
     EKEventStore.authorizationStatus(for: .event) == .fullAccess && !offlineMode
 }
@@ -69,4 +69,68 @@ private func address(_ p: EKParticipant) -> String {
         if let event = event(e) { boxes[key(e.calendar), default: Box()].events.append(event) }
     }
     return boxes
+}
+
+/// Окно «Календари Mac»: единственное место, где Butler просит доступ к календарям, — при первом открытии.
+/// Галочка действует сразу, окно не закрывается.
+struct CalendarsDialog: View {
+    let app: App
+    @SwiftUI.State private var status = EKEventStore.authorizationStatus(for: .event)
+
+    var body: some View {
+        popup("Календари Mac") {
+            switch status {
+            case .fullAccess:
+                Text("Встречи отмеченных календарей — в Butler наравне с Exchange.")
+                    .foregroundStyle(Ink.tertiary).fixedSize(horizontal: false, vertical: true)
+                list
+            case .notDetermined:
+                Text("Ждём разрешения…").foregroundStyle(Ink.tertiary)
+            default:
+                Text("Butler не видит календари Mac.")
+                Button("Открыть настройки доступа") {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
+                }
+                .buttonStyle(Hover(padding: 6))
+                .foregroundStyle(Ink.accent)
+            }
+            done(app)
+        }
+        .task {
+            guard status == .notDetermined else { return }
+            _ = try? await store.requestFullAccessToEvents()
+            status = EKEventStore.authorizationStatus(for: .event)
+            app.calendarsChanged()
+            // Щелчок по системному запросу закрывает окно Butler как щелчок мимо — оно открывается снова.
+            app.openDialog(.calendars)
+        }
+    }
+
+    /// Календари по учётным записям; и те и другие — по алфавиту.
+    @ViewBuilder private var list: some View {
+        let groups = Dictionary(grouping: macCalendars()) { $0.source?.title ?? "" }
+        let sources = groups.keys.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        if sources.isEmpty {
+            ListBox(items: [String](), id: \.self, empty: "В «Календаре» нет календарей") { _ in EmptyView() }
+        } else {
+            fitting(VStack(alignment: .leading, spacing: 8) {
+                ForEach(sources, id: \.self) { source in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(source).font(Ink.title).foregroundStyle(Ink.tertiary)
+                        ForEach(groups[source]!.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending },
+                                id: \.calendarIdentifier) { c in
+                            Toggle(isOn: Binding(get: { app.config.calendars.contains(key(c)) }, set: { _ in app.toggleCalendar(key(c)) })) {
+                                HStack(spacing: 6) {
+                                    Circle().fill(Color(cgColor: c.cgColor)).frame(width: 8, height: 8)
+                                    Text(c.title).foregroundStyle(Ink.primary).lineLimit(1).truncationMode(.middle)
+                                }
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading))
+        }
+    }
 }
