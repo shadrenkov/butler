@@ -141,7 +141,7 @@ func assemble(_ boxes: [String: Box], order: [String], day: String, config: Conf
     var organized: Set<Key> = []
     for address in order {
         for e in boxes[address]?.events ?? [] where e.start < to && e.end > from && !e.isCancelled {
-            let key = Key(start: e.start, end: e.end, isAllDay: e.isAllDay, subject: e.subject, organizer: e.organizerAddress)
+            let key = Key(start: e.start, end: e.end, isAllDay: e.isAllDay, subject: e.subject, organizer: e.organizerAddress.lowercased())
             if kept[key] == nil { kept[key] = (e, address) }
             if e.response == "Organizer" || e.response == "Accept" { accepted.insert(key) }
             if e.response == "Organizer" { organized.insert(key) }
