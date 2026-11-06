@@ -589,11 +589,11 @@ private struct Welcome: View {
         GeometryReader { geo in
             let (w, h) = (geo.size.width, geo.size.height)
             let font = NSFont.systemFont(ofSize: 10, weight: .semibold)
-            let last = NSString(string: lines[1]).size(withAttributes: [.font: font])
+            let width = lines.map { NSString(string: $0).size(withAttributes: [.font: font]).width }.max() ?? 0
             // Шестерёнка — в 12 pt от правого и нижнего края, сама около 14 pt. Надпись выше неё — чтобы дуга читалась;
-            // стрелка — от конца второй строки.
+            // стрелка — от правого края надписи, с середины по высоте.
             let middle = h - 80
-            let start = CGPoint(x: w / 2 + last.width / 2 + 6, y: middle + last.height / 2)
+            let start = CGPoint(x: w / 2 + width / 2 + 6, y: middle)
             let end = CGPoint(x: w - 19, y: h - 30)
             Text(lines.joined(separator: "\n")).font(Ink.title).foregroundStyle(Ink.secondary).multilineTextAlignment(.center)
                 .position(x: w / 2, y: middle)
