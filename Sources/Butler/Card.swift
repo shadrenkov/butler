@@ -527,6 +527,9 @@ struct Info: View {
                         .help(source)
                 }
             }
+            // Заголовок целиком, в несколько строк: на шкале длинный обрезается.
+            Text(meeting.subject).font(Ink.title).foregroundStyle(Ink.primary)
+                .fixedSize(horizontal: false, vertical: true)
             if !meeting.organizerName.isEmpty {
                 // Звезда у организатора — сделать его VIP или убрать из VIP.
                 let vip = isVIPOrganizer(meeting.organizerName, app.config)
