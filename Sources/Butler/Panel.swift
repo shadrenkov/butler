@@ -427,7 +427,7 @@ struct DayView: View {
                 GeometryReader { g in
                     Week(app: app)
                         .frame(width: g.size.width)
-                        .offset(y: 5 - g.frame(in: .named("card")).minY)
+                        .offset(y: 2.5 - g.frame(in: .named("card")).minY)
                 }
                 .allowsHitTesting(false)
             }
@@ -646,7 +646,7 @@ func dayTitle(_ day: String) -> String? {
     return text.prefix(1).uppercased() + text.dropFirst()
 }
 
-/// Неделя показанного дня — семь квадратиков у верхнего края карточки: бледная краска, сквозь которую видно
+/// Неделя показанного дня — семь прямоугольников у верхнего края карточки: бледная краска, сквозь которую видно
 /// зерно листа, будто их напечатали. Выходные розоватые, сам день — тем же тоном, только гуще,
 /// прошедшие дни бледнее и слегка зачёркнуты (сегодня — когда кончилась последняя встреча), отмеченные в календаре — в красной рамке. Под квадратиком — точки важных встреч, по пикселю.
 struct Week: View {
@@ -658,7 +658,8 @@ struct Week: View {
         // он кончается только с полуночью.
         let timed = app.meetings.filter { !$0.isAllDay }
         let todayOver = !timed.isEmpty && timed.allSatisfy { $0.end <= app.now }
-        let size: CGFloat = 7.5
+        // Прямоугольники вытянуты вверх, к самому краю карточки.
+        let (width, height): (CGFloat, CGFloat) = (7.5, 10)
         HStack(spacing: 3) {
             ForEach(week(app.shownDay), id: \.self) { d in
                 // Свой тон у каждого дня: будни серые, выходные розоватые. Показанный день — тем же тоном, только гуще;
@@ -669,12 +670,12 @@ struct Week: View {
                 VStack(spacing: 1.2) {
                     RoundedRectangle(cornerRadius: 1.5)
                         .fill(tone.opacity((tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 3.2 : past ? 0.55 : 1)))
-                        .frame(width: size, height: size)
+                        .frame(width: width, height: height)
                         .overlay {
                             if past {
                                 Path { path in
-                                    path.move(to: CGPoint(x: 0.5, y: size - 0.5))
-                                    path.addLine(to: CGPoint(x: size - 0.5, y: 0.5))
+                                    path.move(to: CGPoint(x: 0.5, y: height - 0.5))
+                                    path.addLine(to: CGPoint(x: width - 0.5, y: 0.5))
                                 }
                                 .stroke(tone.opacity(shown ? 0.55 : 0.3), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
                             }
@@ -689,7 +690,7 @@ struct Week: View {
                 .overlay {
                     if app.config.markedDays.contains(d) {
                         RoundedRectangle(cornerRadius: 3).stroke(ink(0xCF5F4C).opacity(0.38), lineWidth: 0.8)
-                            .padding(.horizontal, -1.8).padding(.top, -1.8).padding(.bottom, -1.3)
+                            .padding(.horizontal, -1.8).padding(.top, -1.3).padding(.bottom, -1.3)
                     }
                 }
             }
