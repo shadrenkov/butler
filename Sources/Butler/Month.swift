@@ -50,6 +50,11 @@ func grid(_ month: String) -> [[String]] {
     }
 }
 
+/// Неделя дня — с понедельника по воскресенье.
+func week(_ day: String) -> [String] {
+    grid(monthOf(day)).first { $0.contains(day) } ?? []
+}
+
 // MARK: - Чтение месяца
 
 /// Прочитанный месяц: боксы ящиков, время попытки и итог — в памяти, не дольше 10 минут без перечитывания.
@@ -175,7 +180,7 @@ struct MonthView: View {
         let month = app.shownMonth
         let current = today()
         // Встречи дней месяца собираются один раз на кадр, а не в каждой клетке.
-        let meetings = Dictionary(uniqueKeysWithValues: grid(month).joined().map { ($0, app.monthMeetings($0)) })
+        let meetings = Dictionary(uniqueKeysWithValues: grid(month).joined().map { ($0, app.knownMeetings($0)) })
         let failed = app.months[month]?.failure != nil
         VStack(alignment: .leading, spacing: 8) {
             header(month, current: current)
@@ -333,7 +338,7 @@ private struct Selected: View {
     let scrolls: Bool
 
     var body: some View {
-        let meetings = app.monthMeetings(app.selectedDay)
+        let meetings = app.knownMeetings(app.selectedDay)
         VStack(alignment: .leading, spacing: 8) {
             Text(dayTitle(app.selectedDay) ?? "").font(Ink.title).foregroundStyle(Ink.primary)
             if let meetings {

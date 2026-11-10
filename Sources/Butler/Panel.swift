@@ -291,7 +291,7 @@ struct DayView: View {
         }
         // Сверху поле шире — под неделю над датой.
         .padding([.horizontal, .bottom], 12)
-        .padding(.top, 16)
+        .padding(.top, 19)
         .frame(width: width, height: windowHeight(), alignment: .topLeading)
         .coordinateSpace(.named("card"))
         .background(Ink.window)
@@ -425,7 +425,7 @@ struct DayView: View {
             // Неделя — над датой у самого края карточки: на одном месте, как бы ни сложилась высота заголовка.
             .overlay {
                 GeometryReader { g in
-                    Week(day: app.shownDay, workdays: app.state.workdays)
+                    Week(app: app)
                         .frame(width: g.size.width)
                         .offset(y: 5 - g.frame(in: .named("card")).minY)
                 }
@@ -647,28 +647,42 @@ func dayTitle(_ day: String) -> String? {
 }
 
 /// Неделя показанного дня — семь квадратиков у верхнего края карточки: бледная краска, сквозь которую видно
-/// зерно листа, будто их напечатали. Выходные ещё бледнее, сам день ярче, прошедшие дни слегка зачёркнуты.
+/// зерно листа, будто их напечатали. Выходные розоватые, сам день жёлто-оранжевый, прошедшие дни слегка
+/// зачёркнуты, отмеченные в календаре обведены карандашом. Под квадратиком — точки важных встреч, по пикселю.
 struct Week: View {
-    let day: String
-    let workdays: [String: Workdays]
+    let app: App
 
     var body: some View {
         let current = today()
         let size: CGFloat = 7.5
         HStack(spacing: 3) {
-            ForEach(grid(monthOf(day)).first { $0.contains(day) } ?? [], id: \.self) { d in
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(d == day ? ink(0xCF5F4C).opacity(0.45) : Ink.secondary.opacity(nonWorking(d, workdays: workdays) ? 0.05 : 0.17))
-                    .frame(width: size, height: size)
-                    .overlay {
-                        if d < current {
-                            Path { path in
-                                path.move(to: CGPoint(x: 0.5, y: size - 0.5))
-                                path.addLine(to: CGPoint(x: size - 0.5, y: 0.5))
+            ForEach(week(app.shownDay), id: \.self) { d in
+                VStack(spacing: 2) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(d == app.shownDay ? ink(0xF0A028).opacity(0.7)
+                              : nonWorking(d, workdays: app.state.workdays) ? ink(0xE07A64).opacity(0.22) : Ink.secondary.opacity(0.17))
+                        .frame(width: size, height: size)
+                        .overlay {
+                            if d < current {
+                                Path { path in
+                                    path.move(to: CGPoint(x: 0.5, y: size - 0.5))
+                                    path.addLine(to: CGPoint(x: size - 0.5, y: 0.5))
+                                }
+                                .stroke(Ink.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
                             }
-                            .stroke(Ink.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
                         }
+                        .overlay {
+                            if app.config.markedDays.contains(d) {
+                                Pencil().stroke(ink(0xCF5F4C).opacity(0.5), style: StrokeStyle(lineWidth: 0.8, lineCap: .round))
+                                    .padding(-2.5)
+                            }
+                        }
+                    let vip = min(app.knownMeetings(d)?.filter { important($0, app.state) }.count ?? 0, 3)
+                    HStack(spacing: 1) {
+                        ForEach(0..<vip, id: \.self) { _ in Circle().fill(ink(0xCF5F4C).opacity(0.7)).frame(width: 1, height: 1) }
                     }
+                    .frame(height: 1)
+                }
             }
         }
         .blendMode(.multiply)

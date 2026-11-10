@@ -637,7 +637,8 @@ final class App: NSObject, NSApplicationDelegate {
         return parser.date(from: day).flatMap { Calendar.current.date(byAdding: .day, value: offset, to: $0) }.map(dayString)
     }
 
-    /// День окна берётся из кэша; день за окном читается из Exchange — не чаще раза в 10 минут и только из
+    /// Дни окна берутся из кэша; остальные дни недели показанного — нужны и ему, и неделе над датой с точками
+    /// важных встреч — читаются из Exchange одним чтением на ящик: каждый не чаще раза в 10 минут и только из
     /// ящиков, у которых всё в порядке: остановленный или ждущий конца троттлинга ящик не трогается.
     func show(_ day: String) {
         shownDay = day
@@ -646,42 +647,44 @@ final class App: NSObject, NSApplicationDelegate {
             dayErrors[day] = scheduleError
             return
         }
-        guard !config.paused, !window.contains(day), currentTime().timeIntervalSince(daysAt[day] ?? .distantPast) > 600,
-              let (from, to) = bounds(day) else { return }
-        // День из свежего месяца — без своего чтения.
-        if let read = monthRead(day), read.failure == nil, currentTime().timeIntervalSince(read.at) < 600 {
-            dayBoxes[day] = read.boxes
-            (daysAt[day], dayErrors[day]) = (read.at, nil)
-            return
+        guard !config.paused else { return }
+        let now = currentTime()
+        var days = week(day).filter { !window.contains($0) && now.timeIntervalSince(daysAt[$0] ?? .distantPast) > 600 }
+        // Дни из свежего месяца — без своего чтения.
+        for d in days {
+            if let read = monthRead(d), read.failure == nil, now.timeIntervalSince(read.at) < 600 {
+                dayBoxes[d] = read.boxes
+                (daysAt[d], dayErrors[d]) = (read.at, nil)
+            }
         }
-        // Ящик в сбое не мешает остальным: день читается из тех, что на связи. Ошибка — только если таких нет.
+        days = days.filter { now.timeIntervalSince(daysAt[$0] ?? .distantPast) > 600 }
+        guard let first = days.first, let last = days.last, let from = bounds(first)?.start, let to = bounds(last)?.end else { return }
+        // Ящик в сбое не мешает остальным: дни читаются из тех, что на связи. Ошибка — только если таких нет.
         let healthy = config.mailboxes.filter { [nil, .noPassword].contains(state.calendar[$0.address]?.failure) }
         if healthy.isEmpty, let failure = config.mailboxes.compactMap({ state.calendar[$0.address]?.failure }).first {
-            dayErrors[day] = failure.text
+            for d in days { dayErrors[d] = failure.text }
             return
         }
-        loading.insert(day)
-        dayErrors[day] = nil
+        loading.formUnion(days)
         // Время попытки, а не удачи: неудачное чтение тоже не повторяется раньше чем через 10 минут.
-        daysAt[day] = currentTime()
+        for d in days { (daysAt[d], dayErrors[d]) = (now, nil) }
         requests += 1
         Task {
             defer {
-                loading.remove(day)
+                loading.subtract(days)
                 requests -= 1
             }
             var boxes: [String: Box] = [:]
             var failure: Failure?
             for m in healthy {
-                let box = await Butler.read(m, password: passwords[m.address], from: from, to: to, days: day...day, box: Box())
+                let box = await Butler.read(m, password: passwords[m.address], from: from, to: to, days: first...last, box: Box())
                 if box.failure == nil { boxes[m.address] = box } else if box.failure != .noPassword { failure = box.failure }
             }
             if boxes.isEmpty, let failure {
-                dayErrors[day] = failure.text
+                for d in days { dayErrors[d] = failure.text }
                 return
             }
-            dayBoxes[day] = boxes
-            daysAt[day] = currentTime()
+            for d in days { (dayBoxes[d], daysAt[d]) = (boxes, currentTime()) }
         }
     }
 
@@ -739,12 +742,12 @@ final class App: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Встречи дня для месяца: день окна — из кэша окна, остальные — из прочитанного месяца, а без ящиков — из
-    /// одних календарей Mac; `nil` — данных нет.
-    func monthMeetings(_ day: String) -> [Meeting]? {
+    /// Встречи дня для месяца и недели над датой: день окна — из кэша окна, остальные — из прочитанного дня или
+    /// месяца, а без ящиков — из одних календарей Mac; `nil` — данных нет.
+    func knownMeetings(_ day: String) -> [Meeting]? {
         if (window.contains(day) || config.mailboxes.isEmpty) && hasSchedule { return visible(assembled(day)) }
-        guard let read = monthRead(day) else { return nil }
-        return visible(assembled(read.boxes, day))
+        guard let boxes = dayBoxes[day] ?? monthRead(day)?.boxes else { return nil }
+        return visible(assembled(boxes, day))
     }
 
     /// Самое свежее чтение, захватившее день: чтение месяца покрывает его сетку, поэтому день с края —
