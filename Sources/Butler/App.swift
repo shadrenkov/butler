@@ -68,6 +68,10 @@ final class App: NSObject, NSApplicationDelegate {
     /// вокруг точки связи.
     var polledAt: Date?
     var syncingSince: Date?
+    /// Сколько обращений к ящикам идёт сейчас — проверка, чтение дня или месяца; пока хоть одно, по кольцу кружат дуги.
+    @ObservationIgnored private var requests = 0 {
+        didSet { if (requests > 0) != (syncingSince != nil) { syncingSince = requests > 0 ? .now : nil } }
+    }
     /// Открыта ли всплывашка индикатора связи — её открывает и сам Butler, когда связь пропала.
     var connectionDetails = false
     /// Пока выпадающий список открыт, автоповтор стоит.
@@ -227,10 +231,10 @@ final class App: NSObject, NSApplicationDelegate {
                 return currentTime().timeIntervalSince(box.success ?? .distantPast) >= 50
             }
             if !due.isEmpty || !checks.isEmpty {
-                syncingSince = .now
+                requests += 1
                 await read(due)
                 await read(checks, onlyToday: true)
-                syncingSince = nil
+                requests -= 1
                 state.save()
             }
         }
@@ -243,8 +247,13 @@ final class App: NSObject, NSApplicationDelegate {
     /// Прочитать окно ящиков (или только сегодня) параллельно и положить результат в кэш.
     private func read(_ mailboxes: [Mailbox], onlyToday: Bool = false) async {
         let mailboxes = config.paused ? [] : mailboxes.filter { !reading.contains($0.address) }
+        guard !mailboxes.isEmpty else { return }
         reading.formUnion(mailboxes.map(\.address))
-        defer { reading.subtract(mailboxes.map(\.address)) }
+        requests += 1
+        defer {
+            reading.subtract(mailboxes.map(\.address))
+            requests -= 1
+        }
         let first = today()
         guard let (from, end) = bounds(first), let last = window.last, let to = bounds(last)?.end else { return }
         let reads = mailboxes.map { m in
@@ -655,8 +664,12 @@ final class App: NSObject, NSApplicationDelegate {
         dayErrors[day] = nil
         // Время попытки, а не удачи: неудачное чтение тоже не повторяется раньше чем через 10 минут.
         daysAt[day] = currentTime()
+        requests += 1
         Task {
-            defer { loading.remove(day) }
+            defer {
+                loading.remove(day)
+                requests -= 1
+            }
             var boxes: [String: Box] = [:]
             var failure: Failure?
             for m in healthy {
@@ -766,6 +779,7 @@ final class App: NSObject, NSApplicationDelegate {
         let mailboxes = healthy.filter { !reading.contains($0.address) && passwords[$0.address] != nil }
         guard !mailboxes.isEmpty else { return }
         reading.formUnion(mailboxes.map(\.address))
+        requests += 1
         months[month, default: MonthRead(at: .distantPast)].at = currentTime()
         months[month]?.failure = nil
         monthLoad = MonthLoad(month: month, started: .now, reads: Dictionary(uniqueKeysWithValues: mailboxes.map { ($0.address, MonthLoad.Read()) }))
@@ -786,6 +800,7 @@ final class App: NSObject, NSApplicationDelegate {
                 if let f = box.failure, f != .noPassword { failures.append(f) } else { boxes[address] = box; answered = answered || box.failure == nil }
             }
             reading.subtract(mailboxes.map(\.address))
+            requests -= 1
             // Сбой месяца — только когда не ответил ни один ящик: иначе месяц показывает, что получено.
             let failure = answered ? nil : failures.first
             // Дни и встречи меняются вместе: иначе прежние встречи сочтутся встречами нового диапазона.
