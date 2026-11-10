@@ -407,18 +407,22 @@ struct DayView: View {
             // Кружок — по рамке подсветки, как у стрелок рядом: отступ `Hover` (6 по бокам, 3 сверху и снизу)
             // почти весь уходит под кружок, а от него до текста — ещё 6 pt.
             Button { app.openMonth() } label: {
-                Text(dayTitle(app.shownDay) ?? "").font(Ink.title).foregroundStyle(Ink.primary)
-                    .padding(.horizontal, 6)
-                    .overlay {
-                        if app.config.markedDays.contains(app.shownDay) {
-                            Pencil().stroke(ink(0xCF5F4C).opacity(0.85), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
-                                .padding(.horizontal, -5).padding(.vertical, -2.5)
+                // Отступ — под карандашную обводку отмеченного дня: она выходит за текст на 5 pt.
+                HStack(spacing: 6) {
+                    Dots(day: app.shownDay, workdays: app.state.workdays)
+                    Text(dayTitle(app.shownDay) ?? "").font(Ink.title).foregroundStyle(Ink.primary)
+                        .padding(.horizontal, 6)
+                        .overlay {
+                            if app.config.markedDays.contains(app.shownDay) {
+                                Pencil().stroke(ink(0xCF5F4C).opacity(0.85), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+                                    .padding(.horizontal, -5).padding(.vertical, -2.5)
+                            }
                         }
-                    }
+                }
             }
             .keyboardShortcut(key(.return))
             .help("Календарь на месяц")
-            .frame(width: 124)
+            .frame(width: 154)
             Button { app.shift(1) } label: { Image(systemName: "chevron.right") }
                 .keyboardShortcut(key(.rightArrow))
                 .help("Следующий день")
@@ -632,6 +636,31 @@ func dayTitle(_ day: String) -> String? {
     guard let date = parser.date(from: day) else { return nil }
     let text = date.formatted(.dateTime.weekday(.abbreviated).day().month(.wide).locale(Locale(identifier: "ru_RU")))
     return text.prefix(1).uppercased() + text.dropFirst()
+}
+
+/// Месяц точками — значок перед датой дня: по точке на день, недели строками с понедельника. Выходные и праздники
+/// бледнее, сам день — ярким: с одного взгляда видно, начало это месяца или конец и какой день недели.
+struct Dots: View {
+    let day: String
+    let workdays: [String: Workdays]
+
+    var body: some View {
+        let month = monthOf(day)
+        let weeks = grid(month).filter { $0.contains { monthOf($0) == month } }
+        let (size, pitch): (CGFloat, CGFloat) = (2.2, 3.2)
+        // Высота — на шесть недель, чтобы дата не прыгала; месяц короче — посередине.
+        Canvas { context, frame in
+            let top = (frame.height - CGFloat(weeks.count) * pitch) / 2
+            for (row, week) in weeks.enumerated() {
+                for (column, d) in week.enumerated() where monthOf(d) == month {
+                    let dot = CGRect(x: CGFloat(column) * pitch, y: top + CGFloat(row) * pitch, width: size, height: size)
+                    let color = d == day ? Ink.accent : nonWorking(d, workdays: workdays) ? Ink.faded.opacity(0.7) : Ink.secondary
+                    context.fill(Path(ellipseIn: d == day ? dot.insetBy(dx: -0.3, dy: -0.3) : dot), with: .color(color))
+                }
+            }
+        }
+        .frame(width: 7 * pitch, height: 6 * pitch)
+    }
 }
 
 /// Кнопки напоминания в заголовке, справа от даты, — пока встреча звенит или я на неё опаздываю:
