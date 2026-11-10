@@ -422,7 +422,7 @@ struct DayView: View {
             }
             .keyboardShortcut(key(.return))
             .help("Календарь на месяц")
-            .frame(width: 154)
+            .frame(width: 158)
             Button { app.shift(1) } label: { Image(systemName: "chevron.right") }
                 .keyboardShortcut(key(.rightArrow))
                 .help("Следующий день")
@@ -647,15 +647,15 @@ struct Dots: View {
     var body: some View {
         let month = monthOf(day)
         let weeks = grid(month).filter { $0.contains { monthOf($0) == month } }
-        let (size, pitch): (CGFloat, CGFloat) = (2.2, 3.2)
+        let (size, pitch): (CGFloat, CGFloat) = (3, 3.5)
         // Высота — на шесть недель, чтобы дата не прыгала; месяц короче — посередине.
         Canvas { context, frame in
             let top = (frame.height - CGFloat(weeks.count) * pitch) / 2
             for (row, week) in weeks.enumerated() {
                 for (column, d) in week.enumerated() where monthOf(d) == month {
                     let dot = CGRect(x: CGFloat(column) * pitch, y: top + CGFloat(row) * pitch, width: size, height: size)
-                    let color = d == day ? Ink.accent : nonWorking(d, workdays: workdays) ? Ink.faded.opacity(0.7) : Ink.secondary
-                    context.fill(Path(ellipseIn: d == day ? dot.insetBy(dx: -0.3, dy: -0.3) : dot), with: .color(color))
+                    let color = d == day ? ink(0xF2400F) : nonWorking(d, workdays: workdays) ? Ink.faded.opacity(0.7) : Ink.secondary
+                    context.fill(Path(ellipseIn: dot), with: .color(color))
                 }
             }
         }
