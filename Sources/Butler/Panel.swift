@@ -648,7 +648,7 @@ func dayTitle(_ day: String) -> String? {
 
 /// Неделя показанного дня — семь квадратиков у верхнего края карточки: бледная краска, сквозь которую видно
 /// зерно листа, будто их напечатали. Выходные розоватые, сам день жёлто-оранжевый, прошедшие дни слегка
-/// зачёркнуты, отмеченные в календаре обведены карандашом. Под квадратиком — точки важных встреч, по пикселю.
+/// зачёркнуты, отмеченные в календаре — в красной рамке. Под квадратиком — точки важных встреч, по пикселю.
 struct Week: View {
     let app: App
 
@@ -671,17 +671,18 @@ struct Week: View {
                                 .stroke(Ink.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
                             }
                         }
-                        .overlay {
-                            if app.config.markedDays.contains(d) {
-                                Pencil().stroke(ink(0xCF5F4C).opacity(0.38), style: StrokeStyle(lineWidth: 0.8, lineCap: .round))
-                                    .padding(-1.8)
-                            }
-                        }
                     let vip = min(app.knownMeetings(d)?.filter { important($0, app.state) }.count ?? 0, 3)
                     HStack(spacing: 1) {
                         ForEach(0..<vip, id: \.self) { _ in Circle().fill(ink(0xCF5F4C).opacity(0.7)).frame(width: 1.5, height: 1.5) }
                     }
                     .frame(height: 1.5)
+                }
+                // Отмеченный день — в рамке со скруглёнными углами вместе с точками, не касаясь квадратика.
+                .overlay {
+                    if app.config.markedDays.contains(d) {
+                        RoundedRectangle(cornerRadius: 3).stroke(ink(0xCF5F4C).opacity(0.38), lineWidth: 0.8)
+                            .padding(.horizontal, -1.8).padding(.top, -1.8).padding(.bottom, -1.3)
+                    }
                 }
             }
         }
