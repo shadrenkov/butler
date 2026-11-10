@@ -118,32 +118,29 @@ struct Card: View {
         VStack(alignment: .leading, spacing: 0) {
             if rows == 1 {
                 HStack(spacing: 4) {
-                    (Text("\(hhmm(meeting.start)) · ").font(Ink.body).monospacedDigit().foregroundStyle(quiet)
+                    withPeople((Text("\(hhmm(meeting.start)) · ").font(Ink.body).monospacedDigit().foregroundStyle(quiet)
                         + Text(meeting.subject).font(Ink.title).foregroundStyle(text))
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                    people
+                        .lineLimit(1))
                     icons
                 }
                 .frame(height: rowHeight)
             } else {
                 timeRow
                 // Число участников — в правом нижнем углу: в конце строки названия или организатора.
-                HStack(alignment: .lastTextBaseline, spacing: 4) {
+                if rows == 2 {
+                    withPeople(Text(meeting.subject).font(Ink.title).foregroundStyle(text).lineLimit(1))
+                } else {
                     Text(meeting.subject).font(Ink.title).foregroundStyle(text)
-                        .lineLimit(max(1, rows - 2))
+                        .lineLimit(rows - 2)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
-                    if rows == 2 { people }
-                }
-                if rows >= 3 {
-                    HStack(spacing: 4) {
+                    Group {
                         if opening {
                             OpeningCaption(link: meeting.joinURL)
                         } else if meeting.isOrganizer != true {
-                            Text(shortName(meeting.organizerName)).font(Ink.body).foregroundStyle(quiet).lineLimit(1)
+                            withPeople(Text(shortName(meeting.organizerName)).font(Ink.body).foregroundStyle(quiet).lineLimit(1))
+                        } else {
+                            withPeople(Color.clear.frame(height: 0))
                         }
-                        Spacer(minLength: 0)
-                        people
                     }
                     .frame(height: rowHeight)
                 }
@@ -190,6 +187,23 @@ struct Card: View {
             icons
         }
         .frame(height: rowHeight)
+    }
+
+    /// Строка с числом участников справа. Число не теснит текст: короткий текст виден целиком, длинному остаётся
+    /// не меньше 90 pt — иначе числа нет.
+    private func withPeople(_ content: some View) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                content.frame(maxWidth: .infinity, alignment: .leading)
+                people
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                // Идеальная ширина задана, иначе длинное название никогда не «влезет» и число пропадёт.
+                content.frame(minWidth: 90, idealWidth: 90, maxWidth: .infinity, alignment: .leading)
+                people
+            }
+            content.frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     /// Сколько людей на встрече, кроме меня: участники и организатор, если это не я. Никого — пусто.
