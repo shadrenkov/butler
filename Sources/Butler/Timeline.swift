@@ -120,13 +120,12 @@ func homeTime(_ date: Date, config: Config) -> String {
         timeZone: TimeZone(identifier: config.homeTimeZone) ?? .current, calendar: .current))
 }
 
-/// « · GMT-3 04:00» или « · GMT-3 04:00–07:00» — время во втором, домашнем часовом поясе, голубым.
+/// « · 04:00» или « · 04:00–07:00» — время во втором, домашнем часовом поясе: без подписи, его видно по голубому.
 /// Второй пояс выключен в настройках — пусто.
 func homeLabel(_ start: Date, to end: Date? = nil, config: Config) -> Text {
     guard config.showHomeTime else { return Text("") }
-    let zone = TimeZone(identifier: config.homeTimeZone)?.abbreviation() ?? ""
     let times = [start, end].compactMap { $0 }.map { homeTime($0, config: config) }
-    return Text(" · ").foregroundStyle(Ink.secondary) + Text(zone + " " + times.joined(separator: "–")).foregroundStyle(Ink.home)
+    return Text(" · ").foregroundStyle(Ink.secondary) + Text(times.joined(separator: "–")).foregroundStyle(Ink.home)
 }
 
 /// Ширина окна: до трёх дорожек — 400, 4-я и 5-я добавляют по 120; дальше карточки однострочные.
@@ -220,13 +219,13 @@ struct Scale: View {
              height: oneLine ? min(height, rowHeight + 8) : height)
     }
 
-    /// Начало и конец рабочего дня: «10:00 · GMT-3 04:00».
+    /// Начало и конец рабочего дня: «10:00 · 04:00».
     private func edge(_ date: Date) -> some View {
         (Text(hhmm(date)).foregroundStyle(Ink.secondary) + homeLabel(date, config: app.config))
             .font(Ink.body).monospacedDigit().frame(height: rowHeight)
     }
 
-    /// «свободно 1 ч · GMT-3 07:00–08:00» по центру промежутка.
+    /// «свободно 1 ч · 07:00–08:00» по центру промежутка.
     private func free(_ gap: Gap) -> some View {
         (Text("свободно \(durationText(gap.end.timeIntervalSince(gap.start)))").foregroundStyle(Ink.secondary)
             + homeLabel(gap.start, to: gap.end, config: app.config))

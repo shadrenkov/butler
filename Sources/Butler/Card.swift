@@ -512,7 +512,7 @@ struct Info: View {
                 if meeting.isAllDay {
                     Text(allDayText(meeting.start, meeting.end)).font(Ink.title).foregroundStyle(Ink.secondary)
                 } else {
-                    // «10:00–13:00 · GMT-3 04:00–07:00» — как этикетки на шкале.
+                    // «10:00–13:00 · 04:00–07:00» — как этикетки на шкале.
                     (Text("\(hhmm(meeting.start))–\(hhmm(meeting.end))").foregroundStyle(Ink.secondary)
                         + homeLabel(meeting.start, to: meeting.end, config: app.config))
                         .font(Ink.title).monospacedDigit()
