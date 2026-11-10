@@ -291,7 +291,7 @@ struct DayView: View {
         }
         // Сверху поле шире — под неделю над датой.
         .padding([.horizontal, .bottom], 12)
-        .padding(.top, 19)
+        .padding(.top, 16)
         .frame(width: width, height: windowHeight(), alignment: .topLeading)
         .coordinateSpace(.named("card"))
         .background(Ink.window)
@@ -654,18 +654,19 @@ struct Week: View {
 
     var body: some View {
         let current = today()
-        HStack(spacing: 4) {
+        let size: CGFloat = 7.5
+        HStack(spacing: 3) {
             ForEach(grid(monthOf(day)).first { $0.contains(day) } ?? [], id: \.self) { d in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(d == day ? ink(0xCF5F4C).opacity(0.55) : Ink.secondary.opacity(nonWorking(d, workdays: workdays) ? 0.1 : 0.22))
-                    .frame(width: 11, height: 11)
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(d == day ? ink(0xCF5F4C).opacity(0.45) : Ink.secondary.opacity(nonWorking(d, workdays: workdays) ? 0.05 : 0.17))
+                    .frame(width: size, height: size)
                     .overlay {
                         if d < current {
                             Path { path in
-                                path.move(to: CGPoint(x: 1, y: 10))
-                                path.addLine(to: CGPoint(x: 10, y: 1))
+                                path.move(to: CGPoint(x: 0.5, y: size - 0.5))
+                                path.addLine(to: CGPoint(x: size - 0.5, y: 0.5))
                             }
-                            .stroke(Ink.secondary.opacity(0.45), style: StrokeStyle(lineWidth: 1.1, lineCap: .round))
+                            .stroke(Ink.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
                         }
                     }
             }
