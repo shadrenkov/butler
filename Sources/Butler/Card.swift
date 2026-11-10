@@ -114,32 +114,44 @@ struct Card: View {
     /// Звенит или идёт прямо сейчас — у такой карточки кромка чётче.
     private var isActive: Bool { [.ringing, .current, .late].contains(look) }
 
-    /// Строки карточки. `inline` — число участников в конце нижней строки, когда под строками нет места.
-    private func lines(inline: Bool) -> some View {
+    /// Карточка без плашки. Число участников — в правом нижнем углу, поверх: нижняя строка оставляет ему место в
+    /// конце, а строки выше до угла не доходят — под ними всегда есть ещё строка или поле.
+    private func face(badge: Bool) -> some View {
+        lines(reserve: badge)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(height: height, alignment: .top)
+            .overlay(alignment: .bottomTrailing) {
+                if badge { people.padding(.trailing, 5).padding(.bottom, 2) }
+            }
+    }
+
+    /// Строки карточки. `reserve` — в конце нижней строки место под число участников.
+    private func lines(reserve: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if rows == 1 {
                 HStack(spacing: 4) {
-                    withPeople(inline: inline, (Text("\(hhmm(meeting.start)) · ").font(Ink.body).monospacedDigit().foregroundStyle(quiet)
+                    (Text("\(hhmm(meeting.start)) · ").font(Ink.body).monospacedDigit().foregroundStyle(quiet)
                         + Text(meeting.subject).font(Ink.title).foregroundStyle(text))
-                        .lineLimit(1))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
                     icons
                 }
                 .frame(height: rowHeight)
             } else {
                 timeRow
                 if rows == 2 {
-                    withPeople(inline: inline, Text(meeting.subject).font(Ink.title).foregroundStyle(text).lineLimit(1))
+                    bottomRow(reserve: reserve, Text(meeting.subject).font(Ink.title).foregroundStyle(text).lineLimit(1))
                 } else {
                     Text(meeting.subject).font(Ink.title).foregroundStyle(text)
                         .lineLimit(rows - 2)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                     Group {
                         if opening {
-                            OpeningCaption(link: meeting.joinURL)
+                            bottomRow(reserve: reserve, OpeningCaption(link: meeting.joinURL))
                         } else if meeting.isOrganizer != true {
-                            withPeople(inline: inline, Text(shortName(meeting.organizerName)).font(Ink.body).foregroundStyle(quiet).lineLimit(1))
-                        } else {
-                            withPeople(inline: inline, Color.clear.frame(height: 0))
+                            bottomRow(reserve: reserve, Text(shortName(meeting.organizerName)).font(Ink.body).foregroundStyle(quiet).lineLimit(1))
                         }
                     }
                     .frame(height: rowHeight)
@@ -149,19 +161,11 @@ struct Card: View {
     }
 
     var body: some View {
-        // Число участников — в правом нижнем углу карточки, если под строками есть место; нет — в конце нижней строки.
-        ViewThatFits(in: .vertical) {
-            VStack(spacing: 0) {
-                lines(inline: false)
-                Spacer(minLength: 0)
-                people.frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, -2).padding(.bottom, -1)
-            }
-            lines(inline: true)
+        // Узкая карточка — без числа участников: оно отняло бы место у текста.
+        ViewThatFits(in: .horizontal) {
+            face(badge: participants > 0 && rows > 1).frame(minWidth: 110, idealWidth: 110, maxWidth: .infinity)
+            face(badge: false)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .frame(height: height, alignment: .top)
         .background(paper)
         .clipShape(RoundedRectangle(cornerRadius: 5))
         .shadow(color: look == .ringing ? glow(stock(meeting)).opacity(0.55) : .clear, radius: 4)
@@ -201,39 +205,33 @@ struct Card: View {
         .frame(height: rowHeight)
     }
 
-    /// Строка с числом участников справа. Число не теснит текст: короткий текст виден целиком, длинному остаётся
-    /// не меньше 90 pt — иначе числа нет.
-    @ViewBuilder private func withPeople(inline: Bool, _ content: some View) -> some View {
-        if !inline {
+    /// Нижняя строка: при `reserve` в её конце пусто под число участников, текст обрезается раньше.
+    private func bottomRow(reserve: Bool, _ content: some View) -> some View {
+        HStack(spacing: 4) {
             content.frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                content.frame(maxWidth: .infinity, alignment: .leading)
-                people
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                // Идеальная ширина задана, иначе длинное название никогда не «влезет» и число пропадёт.
-                content.frame(minWidth: 90, idealWidth: 90, maxWidth: .infinity, alignment: .leading)
-                people
-            }
-            content.frame(maxWidth: .infinity, alignment: .leading)
-            }
+            if reserve { Color.clear.frame(width: 26, height: 1) }
         }
     }
 
-    /// Сколько людей на встрече, кроме меня: участники и организатор, если это не я. Никого — пусто.
-    @ViewBuilder private var people: some View {
-        let count = (meeting.attendees?.count ?? 0) + (meeting.isOrganizer == true ? 0 : 1)
-        if meeting.attendees != nil, count > 0 {
-            HStack(spacing: 1) {
-                Image(systemName: "person.fill").font(.system(size: 6.5))
-                Text("\(count)").font(.system(size: 8.5)).monospacedDigit()
+    /// Сколько людей на встрече, кроме меня: участники и организатор, если это не я.
+    private var participants: Int {
+        meeting.attendees == nil ? 0 : meeting.attendees!.count + (meeting.isOrganizer == true ? 0 : 1)
+    }
+
+    /// Участники в углу карточки: до четырёх — по человечку на каждого, больше — человечек и число.
+    private var people: some View {
+        HStack(spacing: 1) {
+            if participants <= 4 {
+                ForEach(0..<participants, id: \.self) { _ in Image(systemName: "person.fill") }
+            } else {
+                Image(systemName: "person.fill")
+                Text("\(participants)").font(.system(size: 8.5)).monospacedDigit()
             }
-            .foregroundStyle(Ink.faded)
-            .fixedSize()
-            .help("Участников, кроме вас: \(count)")
         }
+        .font(.system(size: 6.5))
+        .foregroundStyle(Ink.faded)
+        .fixedSize()
+        .help("Участников, кроме вас: \(participants)")
     }
 
     @ViewBuilder private var mark: some View {
