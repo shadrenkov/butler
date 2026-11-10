@@ -123,7 +123,7 @@ struct Card: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .frame(height: height, alignment: .top)
             .overlay(alignment: .bottomTrailing) {
-                if badge { people.padding(.trailing, 5).padding(.bottom, 2) }
+                if badge { people.padding(.trailing, 5).padding(.bottom, 3) }
             }
     }
 
@@ -218,17 +218,20 @@ struct Card: View {
         meeting.attendees == nil ? 0 : meeting.attendees!.count + (meeting.isOrganizer == true ? 0 : 1)
     }
 
-    /// Участники в углу карточки: до четырёх — по человечку на каждого, больше — человечек и число.
-    private var people: some View {
-        HStack(spacing: 1) {
+    /// Участники в углу карточки: до четырёх — по человечку на каждого, вплотную, больше — человечек и число
+    /// одной строкой текста: так человечек встаёт по середине цифр.
+    @ViewBuilder private var people: some View {
+        Group {
             if participants <= 4 {
-                ForEach(0..<participants, id: \.self) { _ in Image(systemName: "person.fill") }
+                HStack(spacing: -1.5) {
+                    ForEach(0..<participants, id: \.self) { _ in Image(systemName: "person.fill") }
+                }
+                .font(.system(size: 8))
             } else {
-                Image(systemName: "person.fill")
-                Text("\(participants)").font(.system(size: 8.5)).monospacedDigit()
+                Text(Image(systemName: "person.fill")).font(.system(size: 8))
+                    + Text(" \(participants)").font(.system(size: 10)).monospacedDigit()
             }
         }
-        .font(.system(size: 6.5))
         .foregroundStyle(Ink.faded)
         .fixedSize()
         .help("Участников, кроме вас: \(participants)")
