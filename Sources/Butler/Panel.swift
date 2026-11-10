@@ -659,7 +659,7 @@ struct Week: View {
         let timed = app.meetings.filter { !$0.isAllDay }
         let todayOver = !timed.isEmpty && timed.allSatisfy { $0.end <= app.now }
         // Прямоугольники вытянуты вверх, к самому краю карточки.
-        let (width, height): (CGFloat, CGFloat) = (7.5, 10)
+        let (width, height): (CGFloat, CGFloat) = (6, 8)
         HStack(spacing: 3) {
             ForEach(week(app.shownDay), id: \.self) { d in
                 // Свой тон у каждого дня: будни серые, выходные розоватые. Показанный день — тем же тоном, только гуще;
@@ -669,7 +669,7 @@ struct Week: View {
                 let shown = d == app.shownDay
                 VStack(spacing: 1.2) {
                     RoundedRectangle(cornerRadius: 1.5)
-                        .fill(tone.opacity((tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 3.2 : past ? 0.55 : 1)))
+                        .fill(tone.opacity((tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 3.2 : past ? 0.55 : 1.3)))
                         .frame(width: width, height: height)
                         .overlay {
                             if past {
