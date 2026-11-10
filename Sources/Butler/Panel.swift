@@ -289,11 +289,8 @@ struct DayView: View {
                 Loading().id(app.shownDay).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        // Сверху поле шире — под неделю над датой.
-        .padding([.horizontal, .bottom], 12)
-        .padding(.top, 19)
+        .padding(12)
         .frame(width: width, height: windowHeight(), alignment: .topLeading)
-        .coordinateSpace(.named("card"))
         .background(Ink.window)
         .overlay { if isEmpty { Welcome() } }
         .overlay(alignment: .bottomTrailing) {
@@ -422,18 +419,14 @@ struct DayView: View {
             .keyboardShortcut(key(.return))
             .help("Календарь на месяц")
             .frame(width: 124)
-            // Неделя — над датой у самого края карточки: на одном месте, как бы ни сложилась высота заголовка.
-            .overlay {
-                GeometryReader { g in
-                    Week(app: app)
-                        .frame(width: g.size.width)
-                        .offset(y: 2.5 - g.frame(in: .named("card")).minY)
-                }
-                .allowsHitTesting(false)
-            }
             Button { app.shift(1) } label: { Image(systemName: "chevron.right") }
                 .keyboardShortcut(key(.rightArrow))
                 .help("Следующий день")
+            // Неделя — сразу за стрелкой: дата шириной постоянная, поэтому неделя на одном месте. Пока звенит
+            // напоминание, строка отдана его кнопкам.
+            if app.pending.isEmpty {
+                Week(app: app).padding(.leading, 8)
+            }
             Spacer()
             // Escape работает и при напоминании, когда крестика нет: это то же, что щелчок мимо окна.
             Button("") { app.close() }.keyboardShortcut(key(.escape)).frame(width: 0).opacity(0)
@@ -646,9 +639,10 @@ func dayTitle(_ day: String) -> String? {
     return text.prefix(1).uppercased() + text.dropFirst()
 }
 
-/// Неделя показанного дня — семь прямоугольников у верхнего края карточки: бледная краска, сквозь которую видно
-/// зерно листа, будто их напечатали. Выходные розоватые, сам день — тем же тоном, только гуще,
-/// прошедшие дни бледнее и слегка зачёркнуты (сегодня — когда кончилась последняя встреча), отмеченные в календаре — в красной рамке. Под квадратиком — точки важных встреч, по пикселю.
+/// Неделя показанного дня — семь прямоугольников справа от даты: бледная краска, сквозь которую видно зерно
+/// листа, будто их напечатали. Будни серые, выходные розоватые, сам день — тем же тоном, только гуще, прошедшие
+/// дни бледнее и слегка зачёркнуты (сегодня — когда кончилась последняя встреча), отмеченные в календаре — в
+/// красной рамке. Под прямоугольником — точки важных встреч; они не сдвигают его с середины строки.
 struct Week: View {
     let app: App
 
@@ -658,41 +652,38 @@ struct Week: View {
         // он кончается только с полуночью.
         let timed = app.meetings.filter { !$0.isAllDay }
         let todayOver = !timed.isEmpty && timed.allSatisfy { $0.end <= app.now }
-        // Прямоугольники вытянуты вверх, к самому краю карточки.
-        let (width, height): (CGFloat, CGFloat) = (6, 8)
-        HStack(spacing: 4.5) {
+        let (width, height): (CGFloat, CGFloat) = (7, 9)
+        HStack(spacing: 4) {
             ForEach(week(app.shownDay), id: \.self) { d in
-                // Свой тон у каждого дня: будни серые, выходные розоватые. Показанный день — тем же тоном, только гуще;
-                // прошедшие бледнее и зачёркнуты своим же тоном.
                 let tone = nonWorking(d, workdays: app.state.workdays) ? ink(0xE07A64) : Ink.secondary
                 let past = d < current || d == current && todayOver
                 let shown = d == app.shownDay
-                VStack(spacing: 1.2) {
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(tone.opacity((tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 3.2 : past ? 0.55 : 1.3)))
-                        .frame(width: width, height: height)
-                        .overlay {
-                            if past {
-                                Path { path in
-                                    path.move(to: CGPoint(x: 0.5, y: height - 0.5))
-                                    path.addLine(to: CGPoint(x: width - 0.5, y: 0.5))
-                                }
-                                .stroke(tone.opacity(shown ? 0.55 : 0.3), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
+                let vip = min(app.knownMeetings(d)?.filter { important($0, app.state) }.count ?? 0, 3)
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(tone.opacity((tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 3.2 : past ? 0.55 : 1.3)))
+                    .frame(width: width, height: height)
+                    .overlay {
+                        if past {
+                            Path { path in
+                                path.move(to: CGPoint(x: 0.5, y: height - 0.5))
+                                path.addLine(to: CGPoint(x: width - 0.5, y: 0.5))
                             }
+                            .stroke(tone.opacity(shown ? 0.55 : 0.3), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
                         }
-                    let vip = min(app.knownMeetings(d)?.filter { important($0, app.state) }.count ?? 0, 3)
-                    HStack(spacing: 1) {
-                        ForEach(0..<vip, id: \.self) { _ in Circle().fill(ink(0xCF5F4C).opacity(0.7)).frame(width: 1.5, height: 1.5) }
                     }
-                    .frame(height: 1.5)
-                }
-                // Отмеченный день — в рамке со скруглёнными углами вместе с точками, не касаясь квадратика.
-                .overlay {
-                    if app.config.markedDays.contains(d) {
-                        RoundedRectangle(cornerRadius: 3).stroke(ink(0xCF5F4C).opacity(0.38), lineWidth: 0.8)
-                            .padding(.horizontal, -1.8).padding(.top, -1.3).padding(.bottom, -1.3)
+                    .overlay(alignment: .bottom) {
+                        HStack(spacing: 1) {
+                            ForEach(0..<vip, id: \.self) { _ in Circle().fill(ink(0xCF5F4C).opacity(0.7)).frame(width: 1.5, height: 1.5) }
+                        }
+                        .offset(y: 3)
                     }
-                }
+                    // Отмеченный день — в рамке со скруглёнными углами вместе с точками, не касаясь прямоугольника.
+                    .overlay {
+                        if app.config.markedDays.contains(d) {
+                            RoundedRectangle(cornerRadius: 3).stroke(ink(0xCF5F4C).opacity(0.38), lineWidth: 0.8)
+                                .padding(.horizontal, -1.8).padding(.top, -1.6).padding(.bottom, -4.5)
+                        }
+                    }
             }
         }
         .blendMode(.multiply)
