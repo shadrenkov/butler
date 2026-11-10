@@ -207,29 +207,32 @@ final class App: NSObject, NSApplicationDelegate {
     }
 
     /// Раз в минуту, после сна и в полночь: каждый ящик, которому пора, читается заново — окно «сегодня и
-    /// 7 дней вперёд». Пора ли, решает `isDue`: обычно раз в 10 минут, после сбоя — по его правилу. На паузе — ничего.
+    /// 7 дней вперёд». Пора ли, решает `isDue`: обычно раз в 10 минут, после сбоя — по его правилу. На паузе
+    /// ничего не читается, но день собирается из кэша: после полуночи напоминают встречи нового дня.
     private func refresh(wake: Bool = false, force: Bool = false) async {
-        guard !refreshing, !config.paused else { return }
+        guard !refreshing else { return }
         refreshing = true
         defer { refreshing = false }
-        polledAt = .now
-        macDays = [:]
-        state.calendar = state.calendar.filter { address, _ in config.mailboxes.contains { $0.address == address } }
-        let now = Date.now
-        let due = config.mailboxes.filter {
-            isDue(state.calendar[$0.address], hasPassword: passwords[$0.address] != nil, now: now, wake: wake, force: force)
-        }
-        // Между чтениями окна — сегодня раз в минуту, только у ящиков на связи: сбой ждёт своего срока.
-        let checks = config.mailboxes.filter { m in
-            guard !due.contains(m), let box = state.calendar[m.address], box.failure == nil, box.windowAt != nil else { return false }
-            return currentTime().timeIntervalSince(box.success ?? .distantPast) >= 50
-        }
-        if !due.isEmpty || !checks.isEmpty {
-            syncingSince = .now
-            await read(due)
-            await read(checks, onlyToday: true)
-            syncingSince = nil
-            state.save()
+        if !config.paused {
+            polledAt = .now
+            macDays = [:]
+            state.calendar = state.calendar.filter { address, _ in config.mailboxes.contains { $0.address == address } }
+            let now = Date.now
+            let due = config.mailboxes.filter {
+                isDue(state.calendar[$0.address], hasPassword: passwords[$0.address] != nil, now: now, wake: wake, force: force)
+            }
+            // Между чтениями окна — сегодня раз в минуту, только у ящиков на связи: сбой ждёт своего срока.
+            let checks = config.mailboxes.filter { m in
+                guard !due.contains(m), let box = state.calendar[m.address], box.failure == nil, box.windowAt != nil else { return false }
+                return currentTime().timeIntervalSince(box.success ?? .distantPast) >= 50
+            }
+            if !due.isEmpty || !checks.isEmpty {
+                syncingSince = .now
+                await read(due)
+                await read(checks, onlyToday: true)
+                syncingSince = nil
+                state.save()
+            }
         }
         meetings = visible(assembled(today()))
         if !isShowingToday { show(shownDay) }

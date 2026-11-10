@@ -460,6 +460,7 @@ struct DayView: View {
     }
 
     private var trouble: String? {
+        if app.config.paused { return "Связь на паузе" }
         if app.window.contains(app.shownDay), let outage = app.currentOutage { return "Нет связи с \(staleTime(outage.since))" }
         if !app.window.contains(app.shownDay), let stale = app.freshness(of: app.shownDay) { return "День не обновлён с \(staleTime(stale.since))" }
         return nil

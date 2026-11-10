@@ -379,7 +379,7 @@ struct Indicator: View {
         let light: Light = lines.contains { $0.status.light == .red } ? .red : lines.contains { $0.status.light == .green } ? .green : .gray
         Button { app.connectionDetails.toggle() } label: {
             if app.config.paused {
-                Image(systemName: "pause.fill").font(.system(size: 8, weight: .bold)).foregroundStyle(Ink.secondary)
+                Image(systemName: "pause.fill").font(.system(size: 8, weight: .bold)).foregroundStyle(Ink.alert)
                     .frame(width: 11, height: 11)
             } else {
                 // Ошибка — мигает быстро, чтобы заметить краем глаза: 0,3 с горит, 0,3 с гаснет.
