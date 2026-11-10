@@ -647,8 +647,8 @@ func dayTitle(_ day: String) -> String? {
 }
 
 /// Неделя показанного дня — семь квадратиков у верхнего края карточки: бледная краска, сквозь которую видно
-/// зерно листа, будто их напечатали. Выходные розоватые, сам день жёлто-оранжевый, прошедшие дни слегка
-/// зачёркнуты (сегодня — когда кончилась последняя встреча), отмеченные в календаре — в красной рамке. Под квадратиком — точки важных встреч, по пикселю.
+/// зерно листа, будто их напечатали. Выходные розоватые, сам день бледно-голубой, как второй часовой пояс,
+/// прошедшие дни слегка зачёркнуты тем же голубым (сегодня — когда кончилась последняя встреча), отмеченные в календаре — в красной рамке. Под квадратиком — точки важных встреч, по пикселю.
 struct Week: View {
     let app: App
 
@@ -663,7 +663,7 @@ struct Week: View {
             ForEach(week(app.shownDay), id: \.self) { d in
                 VStack(spacing: 1.2) {
                     RoundedRectangle(cornerRadius: 1.5)
-                        .fill(d == app.shownDay ? ink(0xF0A028).opacity(0.7)
+                        .fill(d == app.shownDay ? Ink.home.opacity(0.3)
                               : nonWorking(d, workdays: app.state.workdays) ? ink(0xE07A64).opacity(0.22) : Ink.secondary.opacity(0.17))
                         .frame(width: size, height: size)
                         .overlay {
@@ -672,7 +672,7 @@ struct Week: View {
                                     path.move(to: CGPoint(x: 0.5, y: size - 0.5))
                                     path.addLine(to: CGPoint(x: size - 0.5, y: 0.5))
                                 }
-                                .stroke(Ink.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
+                                .stroke(Ink.home.opacity(0.3), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
                             }
                         }
                     let vip = min(app.knownMeetings(d)?.filter { important($0, app.state) }.count ?? 0, 3)
