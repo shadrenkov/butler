@@ -364,7 +364,7 @@ final class App: NSObject, NSApplicationDelegate {
 
     /// Получено ли хоть что-то хоть из одного ящика или есть ли календари Mac — иначе пустой день — это не
     /// «свободный день».
-    private var hasSchedule: Bool {
+    var hasSchedule: Bool {
         config.mailboxes.contains { state.calendar[$0.address]?.success != nil } || (!config.calendars.isEmpty && hasCalendarAccess)
     }
 

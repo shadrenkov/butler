@@ -648,12 +648,14 @@ func dayTitle(_ day: String) -> String? {
 
 /// Неделя показанного дня — семь квадратиков у верхнего края карточки: бледная краска, сквозь которую видно
 /// зерно листа, будто их напечатали. Выходные розоватые, сам день жёлто-оранжевый, прошедшие дни слегка
-/// зачёркнуты, отмеченные в календаре — в красной рамке. Под квадратиком — точки важных встреч, по пикселю.
+/// зачёркнуты (сегодня — когда кончилась последняя встреча), отмеченные в календаре — в красной рамке. Под квадратиком — точки важных встреч, по пикселю.
 struct Week: View {
     let app: App
 
     var body: some View {
         let current = today()
+        // Сегодня зачёркнуто, когда все его встречи со временем прошли — как и прошедшие дни.
+        let todayOver = app.hasSchedule && !app.meetings.contains { !$0.isAllDay && $0.end > app.now }
         let size: CGFloat = 7.5
         HStack(spacing: 3) {
             ForEach(week(app.shownDay), id: \.self) { d in
@@ -663,7 +665,7 @@ struct Week: View {
                               : nonWorking(d, workdays: app.state.workdays) ? ink(0xE07A64).opacity(0.22) : Ink.secondary.opacity(0.17))
                         .frame(width: size, height: size)
                         .overlay {
-                            if d < current {
+                            if d < current || d == current && todayOver {
                                 Path { path in
                                     path.move(to: CGPoint(x: 0.5, y: size - 0.5))
                                     path.addLine(to: CGPoint(x: size - 0.5, y: 0.5))
