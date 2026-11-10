@@ -299,7 +299,7 @@ struct DayView: View {
                     Text(trouble).font(Ink.body).foregroundStyle(Ink.alert).lineLimit(1)
                 }
                 Indicator(app: app)
-                Button { app.openSettings() } label: { Image(systemName: "gearshape") }
+                Button { app.openSettings() } label: { Image(systemName: "gearshape").font(.system(size: 13)) }
                     .buttonStyle(Hover(padding: 4))
                     .foregroundStyle(Ink.tertiary)
                     .help("Настройки")

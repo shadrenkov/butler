@@ -443,13 +443,13 @@ struct Indicator: View {
                 // Крупные кругляши, как во всплывашке встречи; пауза включена — кругляш красный, как отметка дня.
                 HStack(alignment: .top, spacing: 0) {
                     let paused = app.config.paused
-                    Action(symbol: paused ? "play.fill" : "pause.fill", title: paused ? "Продолжить" : "Пауза",
-                           color: paused ? 0xCF5F4C : 0xF3EBDD, hoverColor: paused ? 0xB84F3E : 0xE6D8C2,
-                           iconColor: paused ? .white : Ink.secondary) { app.togglePause() }
                     // На паузе и пока идёт обращение обновлять нечем: запрос либо запрещён, либо уже идёт.
                     Action(symbol: "arrow.clockwise", title: "Обновить сейчас") { app.refreshNow() }
                         .disabled(paused || app.syncingSince != nil)
                         .opacity(paused || app.syncingSince != nil ? 0.4 : 1)
+                    Action(symbol: paused ? "play.fill" : "pause.fill", title: paused ? "Продолжить" : "Пауза",
+                           color: paused ? 0xCF5F4C : 0xF3EBDD, hoverColor: paused ? 0xB84F3E : 0xE6D8C2,
+                           iconColor: paused ? .white : Ink.secondary) { app.togglePause() }
                 }
                 .padding(.top, 6)
             }

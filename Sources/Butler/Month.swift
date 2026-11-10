@@ -299,7 +299,7 @@ struct MonthView: View {
                 Spacer()
                 HStack(spacing: 2) {
                     Indicator(app: app)
-                    Button { app.openSettings() } label: { Image(systemName: "gearshape") }
+                    Button { app.openSettings() } label: { Image(systemName: "gearshape").font(.system(size: 13)) }
                         .buttonStyle(Hover(padding: 4))
                         .foregroundStyle(Ink.tertiary)
                         .help("Настройки")
