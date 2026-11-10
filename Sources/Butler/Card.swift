@@ -96,7 +96,7 @@ func shortName(_ name: String) -> String {
 }
 
 /// Карточка: строки сверху вниз — время, название, организатор — сколько помещается по высоте.
-/// Значки и кнопки живут только в строке времени, справа, и никогда не закрывают текст.
+/// Значки и кнопки живут в строке времени, справа, число участников — в правом нижнем углу; текст они не закрывают.
 struct Card: View {
     let app: App
     let meeting: Meeting
@@ -122,21 +122,28 @@ struct Card: View {
                         + Text(meeting.subject).font(Ink.title).foregroundStyle(text))
                         .lineLimit(1)
                     Spacer(minLength: 4)
+                    people
                     icons
                 }
                 .frame(height: rowHeight)
             } else {
                 timeRow
-                Text(meeting.subject).font(Ink.title).foregroundStyle(text)
-                    .lineLimit(max(1, rows - 2))
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                // Число участников — в правом нижнем углу: в конце строки названия или организатора.
+                HStack(alignment: .lastTextBaseline, spacing: 4) {
+                    Text(meeting.subject).font(Ink.title).foregroundStyle(text)
+                        .lineLimit(max(1, rows - 2))
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    if rows == 2 { people }
+                }
                 if rows >= 3 {
-                    Group {
+                    HStack(spacing: 4) {
                         if opening {
                             OpeningCaption(link: meeting.joinURL)
                         } else if meeting.isOrganizer != true {
                             Text(shortName(meeting.organizerName)).font(Ink.body).foregroundStyle(quiet).lineLimit(1)
                         }
+                        Spacer(minLength: 0)
+                        people
                     }
                     .frame(height: rowHeight)
                 }
@@ -183,6 +190,20 @@ struct Card: View {
             icons
         }
         .frame(height: rowHeight)
+    }
+
+    /// Сколько людей на встрече, кроме меня: участники и организатор, если это не я. Никого — пусто.
+    @ViewBuilder private var people: some View {
+        let count = (meeting.attendees?.count ?? 0) + (meeting.isOrganizer == true ? 0 : 1)
+        if meeting.attendees != nil, count > 0 {
+            HStack(spacing: 1) {
+                Image(systemName: "person.fill").font(.system(size: 8))
+                Text("\(count)").font(Ink.body).monospacedDigit()
+            }
+            .foregroundStyle(Ink.tertiary)
+            .fixedSize()
+            .help("Участников, кроме вас: \(count)")
+        }
     }
 
     @ViewBuilder private var mark: some View {
