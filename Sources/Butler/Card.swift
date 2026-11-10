@@ -229,10 +229,10 @@ struct Card: View {
                 .font(.system(size: 8))
             } else {
                 Text(Image(systemName: "person.fill")).font(.system(size: 8))
-                    + Text(" \(participants)").font(.system(size: 10)).monospacedDigit()
+                    + Text("\(participants)").font(.system(size: 10)).monospacedDigit()
             }
         }
-        .foregroundStyle(Ink.faded)
+        .foregroundStyle(Ink.faded.opacity(0.75))
         .fixedSize()
         .help("Участников, кроме вас: \(participants)")
     }
