@@ -668,7 +668,7 @@ struct Week: View {
                 let shown = d == app.shownDay
                 VStack(spacing: 1.2) {
                     RoundedRectangle(cornerRadius: 1.5)
-                        .fill(tone.opacity((tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 2.4 : past ? 0.55 : 1)))
+                        .fill(tone.opacity((tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 3.2 : past ? 0.55 : 1)))
                         .frame(width: size, height: size)
                         .overlay {
                             if past {
