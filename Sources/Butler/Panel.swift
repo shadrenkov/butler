@@ -657,7 +657,7 @@ struct Week: View {
         let size: CGFloat = 7.5
         HStack(spacing: 3) {
             ForEach(week(app.shownDay), id: \.self) { d in
-                VStack(spacing: 2) {
+                VStack(spacing: 1.2) {
                     RoundedRectangle(cornerRadius: 1.5)
                         .fill(d == app.shownDay ? ink(0xF0A028).opacity(0.7)
                               : nonWorking(d, workdays: app.state.workdays) ? ink(0xE07A64).opacity(0.22) : Ink.secondary.opacity(0.17))
@@ -673,15 +673,15 @@ struct Week: View {
                         }
                         .overlay {
                             if app.config.markedDays.contains(d) {
-                                Pencil().stroke(ink(0xCF5F4C).opacity(0.5), style: StrokeStyle(lineWidth: 0.8, lineCap: .round))
-                                    .padding(-2.5)
+                                Pencil().stroke(ink(0xCF5F4C).opacity(0.38), style: StrokeStyle(lineWidth: 0.8, lineCap: .round))
+                                    .padding(-1.8)
                             }
                         }
                     let vip = min(app.knownMeetings(d)?.filter { important($0, app.state) }.count ?? 0, 3)
                     HStack(spacing: 1) {
-                        ForEach(0..<vip, id: \.self) { _ in Circle().fill(ink(0xCF5F4C).opacity(0.7)).frame(width: 1, height: 1) }
+                        ForEach(0..<vip, id: \.self) { _ in Circle().fill(ink(0xCF5F4C).opacity(0.7)).frame(width: 1.5, height: 1.5) }
                     }
-                    .frame(height: 1)
+                    .frame(height: 1.5)
                 }
             }
         }
