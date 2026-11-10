@@ -418,6 +418,11 @@ struct Indicator: View {
                 } else {
                     Text(light == .red ? "Связь с Exchange: есть ошибки" : light == .green ? "Связь с Exchange в порядке" : "Связь с Exchange")
                         .font(Ink.title).foregroundStyle(light == .red ? Ink.alert : Ink.primary)
+                    // Секунды — от начала прошлой проверки, тем же шагом, что кольцо индикатора.
+                    TimelineView(.periodic(from: app.polledAt ?? .now, by: 1)) { context in
+                        let left = Int((pollInterval - context.date.timeIntervalSince(app.polledAt ?? context.date)).rounded())
+                        Text(app.syncingSince != nil || left <= 0 ? "Обновляю…" : "Обновление через \(left) с").foregroundStyle(Ink.secondary)
+                    }
                 }
                 if lines.isEmpty { Text("Ящиков нет — задайте их в настройках").foregroundStyle(Ink.secondary) }
                 ForEach(lines, id: \.address) { line in
@@ -435,16 +440,18 @@ struct Indicator: View {
                         }
                     }
                 }
-                HStack(spacing: 12) {
-                    Button { app.togglePause() } label: {
-                        Label(app.config.paused ? "Продолжить" : "Пауза", systemImage: app.config.paused ? "play.fill" : "pause.fill")
-                    }
+                // Крупные кругляши, как во всплывашке встречи; пауза включена — кругляш красный, как отметка дня.
+                HStack(alignment: .top, spacing: 0) {
+                    let paused = app.config.paused
+                    Action(symbol: paused ? "play.fill" : "pause.fill", title: paused ? "Продолжить" : "Пауза",
+                           color: paused ? 0xCF5F4C : 0xF3EBDD, hoverColor: paused ? 0xB84F3E : 0xE6D8C2,
+                           iconColor: paused ? .white : Ink.secondary) { app.togglePause() }
                     // На паузе и пока идёт обращение обновлять нечем: запрос либо запрещён, либо уже идёт.
-                    Button { app.refreshNow() } label: { Label("Обновить сейчас", systemImage: "arrow.clockwise") }
-                        .disabled(app.config.paused || app.syncingSince != nil)
-                        .opacity(app.config.paused || app.syncingSince != nil ? 0.4 : 1)
+                    Action(symbol: "arrow.clockwise", title: "Обновить сейчас") { app.refreshNow() }
+                        .disabled(paused || app.syncingSince != nil)
+                        .opacity(paused || app.syncingSince != nil ? 0.4 : 1)
                 }
-                .buttonStyle(Hover(padding: 4)).foregroundStyle(Ink.accent).padding(.leading, -4).padding(.top, 2)
+                .padding(.top, 6)
             }
             .font(Ink.body)
             .padding(10)

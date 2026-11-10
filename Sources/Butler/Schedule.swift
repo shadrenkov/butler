@@ -184,13 +184,11 @@ func marked(_ meetings: [Meeting], _ config: Config) -> [Meeting] {
 
 let pollInterval: TimeInterval = 60
 
-/// Проверять, не пора ли обновить ящики, сразу, раз в минуту, после выхода из сна (`true`) и в полночь;
-/// пора ли на самом деле, решает `isDue`.
+/// Проверять, не пора ли обновить ящики, сразу, после выхода из сна (`true`) и в полночь; раз в минуту — из
+/// секундного тика. Пора ли на самом деле, решает `isDue`.
 @MainActor
 func startPolling(_ refresh: @escaping @MainActor @Sendable (Bool) -> Void) {
     refresh(false)
-    let timer = Timer(timeInterval: pollInterval, repeats: true) { _ in MainActor.assumeIsolated { refresh(false) } }
-    RunLoop.main.add(timer, forMode: .common)
     NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in
         MainActor.assumeIsolated { refresh(true) }
     }

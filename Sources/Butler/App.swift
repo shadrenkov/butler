@@ -213,8 +213,8 @@ final class App: NSObject, NSApplicationDelegate {
         guard !refreshing else { return }
         refreshing = true
         defer { refreshing = false }
+        polledAt = .now
         if !config.paused {
-            polledAt = .now
             macDays = [:]
             state.calendar = state.calendar.filter { address, _ in config.mailboxes.contains { $0.address == address } }
             let now = Date.now
@@ -374,6 +374,8 @@ final class App: NSObject, NSApplicationDelegate {
     /// и кончаются в целые минуты. Иначе окно, даже спрятанное, перерисовывалось бы каждую секунду.
     private func tick() {
         let time = currentTime()
+        // Проверка — через минуту после прошлой: «Обновить сейчас» сдвигает и следующую, отсчёт остаётся честным.
+        if let polledAt, Date.now.timeIntervalSince(polledAt) >= pollInterval { Task { await refresh() } }
         if Int(time.timeIntervalSince1970 / 60) != Int(now.timeIntervalSince1970 / 60) { now = time }
         let current = reminders.reminding(meetings, now: time, state: state, config: config)
         let started = Set(current.map(\.id)).subtracting(reminding.map(\.id))
