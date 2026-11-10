@@ -654,8 +654,10 @@ struct Week: View {
 
     var body: some View {
         let current = today()
-        // Сегодня зачёркнуто, когда все его встречи со временем прошли — как и прошедшие дни.
-        let todayOver = app.hasSchedule && !app.meetings.contains { !$0.isAllDay && $0.end > app.now }
+        // Сегодня зачёркнуто, когда все его встречи со временем прошли — как и прошедшие дни. Свободный день — нет:
+        // он кончается только с полуночью.
+        let timed = app.meetings.filter { !$0.isAllDay }
+        let todayOver = !timed.isEmpty && timed.allSatisfy { $0.end <= app.now }
         let size: CGFloat = 7.5
         HStack(spacing: 3) {
             ForEach(week(app.shownDay), id: \.self) { d in
