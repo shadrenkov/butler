@@ -114,11 +114,12 @@ struct Card: View {
     /// Звенит или идёт прямо сейчас — у такой карточки кромка чётче.
     private var isActive: Bool { [.ringing, .current, .late].contains(look) }
 
-    var body: some View {
+    /// Строки карточки. `inline` — число участников в конце нижней строки, когда под строками нет места.
+    private func lines(inline: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if rows == 1 {
                 HStack(spacing: 4) {
-                    withPeople((Text("\(hhmm(meeting.start)) · ").font(Ink.body).monospacedDigit().foregroundStyle(quiet)
+                    withPeople(inline: inline, (Text("\(hhmm(meeting.start)) · ").font(Ink.body).monospacedDigit().foregroundStyle(quiet)
                         + Text(meeting.subject).font(Ink.title).foregroundStyle(text))
                         .lineLimit(1))
                     icons
@@ -126,9 +127,8 @@ struct Card: View {
                 .frame(height: rowHeight)
             } else {
                 timeRow
-                // Число участников — в правом нижнем углу: в конце строки названия или организатора.
                 if rows == 2 {
-                    withPeople(Text(meeting.subject).font(Ink.title).foregroundStyle(text).lineLimit(1))
+                    withPeople(inline: inline, Text(meeting.subject).font(Ink.title).foregroundStyle(text).lineLimit(1))
                 } else {
                     Text(meeting.subject).font(Ink.title).foregroundStyle(text)
                         .lineLimit(rows - 2)
@@ -137,14 +137,26 @@ struct Card: View {
                         if opening {
                             OpeningCaption(link: meeting.joinURL)
                         } else if meeting.isOrganizer != true {
-                            withPeople(Text(shortName(meeting.organizerName)).font(Ink.body).foregroundStyle(quiet).lineLimit(1))
+                            withPeople(inline: inline, Text(shortName(meeting.organizerName)).font(Ink.body).foregroundStyle(quiet).lineLimit(1))
                         } else {
-                            withPeople(Color.clear.frame(height: 0))
+                            withPeople(inline: inline, Color.clear.frame(height: 0))
                         }
                     }
                     .frame(height: rowHeight)
                 }
             }
+        }
+    }
+
+    var body: some View {
+        // Число участников — в правом нижнем углу карточки, если под строками есть место; нет — в конце нижней строки.
+        ViewThatFits(in: .vertical) {
+            VStack(spacing: 0) {
+                lines(inline: false)
+                Spacer(minLength: 0)
+                people.frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, -2).padding(.bottom, -1)
+            }
+            lines(inline: true)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
@@ -191,8 +203,11 @@ struct Card: View {
 
     /// Строка с числом участников справа. Число не теснит текст: короткий текст виден целиком, длинному остаётся
     /// не меньше 90 pt — иначе числа нет.
-    private func withPeople(_ content: some View) -> some View {
-        ViewThatFits(in: .horizontal) {
+    @ViewBuilder private func withPeople(inline: Bool, _ content: some View) -> some View {
+        if !inline {
+            content.frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 content.frame(maxWidth: .infinity, alignment: .leading)
                 people
@@ -203,6 +218,7 @@ struct Card: View {
                 people
             }
             content.frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
@@ -211,10 +227,10 @@ struct Card: View {
         let count = (meeting.attendees?.count ?? 0) + (meeting.isOrganizer == true ? 0 : 1)
         if meeting.attendees != nil, count > 0 {
             HStack(spacing: 1) {
-                Image(systemName: "person.fill").font(.system(size: 8))
-                Text("\(count)").font(Ink.body).monospacedDigit()
+                Image(systemName: "person.fill").font(.system(size: 6.5))
+                Text("\(count)").font(.system(size: 8.5)).monospacedDigit()
             }
-            .foregroundStyle(Ink.tertiary)
+            .foregroundStyle(Ink.faded)
             .fixedSize()
             .help("Участников, кроме вас: \(count)")
         }
