@@ -226,13 +226,13 @@ struct Card: View {
                 HStack(spacing: -1.5) {
                     ForEach(0..<participants, id: \.self) { _ in Image(systemName: "person.fill") }
                 }
-                .font(.system(size: 8))
+                .font(.system(size: 9))
             } else {
-                Text(Image(systemName: "person.fill")).font(.system(size: 8))
+                Text(Image(systemName: "person.fill")).font(.system(size: 9))
                     + Text("\(participants)").font(.system(size: 10)).monospacedDigit()
             }
         }
-        .foregroundStyle(Ink.faded.opacity(0.75))
+        .foregroundStyle(Ink.faded.opacity(0.62))
         .fixedSize()
         .help("Участников, кроме вас: \(participants)")
     }
