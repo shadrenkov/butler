@@ -43,6 +43,8 @@ struct Config: Decodable {
     /// За сколько часов до первой встречи рабочего дня в строке меню стоит будильник и с какого часа её время мигает.
     var wakeUpHours: Double = 12
     var wakeUpBlinkHours: Double = 9
+    /// Пауза: ящики не читаются, календари Mac не перечитываются — показывается последнее полученное.
+    var paused = false
 
     /// Запись `hidden`: Butler пишет объект с признаком серии, а старая или ручная строка — только название.
     struct Hidden: Decodable {
@@ -99,13 +101,14 @@ struct Config: Decodable {
         markedDays = try value(.markedDays, markedDays).filter { bounds($0) != nil }
         wakeUpHours = try value(.wakeUpHours, wakeUpHours)
         wakeUpBlinkHours = try value(.wakeUpBlinkHours, wakeUpBlinkHours)
+        paused = try value(.paused, paused)
     }
 
     private enum CodingKeys: String, CodingKey {
         case reminderOffsetSeconds, vipReminderOffsetSeconds, reminderRepeats, homeTimeZone, showHomeTime, hidden
         case playAtDesk, soundAtDesk, playAway, soundAway, awayVolume, awayRepeats, playInCall, soundInCall
         case awayAfterMinutes, autoOpenMTSLink, autoOpenSeconds, mailboxes, calendars, vipOrganizers, vipMeetings, markedDays
-        case wakeUpHours, wakeUpBlinkHours
+        case wakeUpHours, wakeUpBlinkHours, paused
     }
 
     /// Играть ли звук в этой ситуации и какой; ключи — те же, что в файле.

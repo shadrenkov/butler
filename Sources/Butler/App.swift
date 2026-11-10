@@ -176,7 +176,7 @@ final class App: NSObject, NSApplicationDelegate {
         meetings = visible(assembled(today()))
         // Хранилище EventKit появляется только с первым чтением календарей: без них подписка ничего не будит.
         NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.calendarsChanged() }
+            MainActor.assumeIsolated { if self?.config.paused == false { self?.calendarsChanged() } }
         }
         startPolling { [weak self] wake in Task { await self?.refresh(wake: wake) } }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
@@ -207,9 +207,9 @@ final class App: NSObject, NSApplicationDelegate {
     }
 
     /// Раз в минуту, после сна и в полночь: каждый ящик, которому пора, читается заново — окно «сегодня и
-    /// 7 дней вперёд». Пора ли, решает `isDue`: обычно раз в 10 минут, после сбоя — по его правилу.
-    private func refresh(wake: Bool = false) async {
-        guard !refreshing else { return }
+    /// 7 дней вперёд». Пора ли, решает `isDue`: обычно раз в 10 минут, после сбоя — по его правилу. На паузе — ничего.
+    private func refresh(wake: Bool = false, force: Bool = false) async {
+        guard !refreshing, !config.paused else { return }
         refreshing = true
         defer { refreshing = false }
         polledAt = .now
@@ -217,7 +217,7 @@ final class App: NSObject, NSApplicationDelegate {
         state.calendar = state.calendar.filter { address, _ in config.mailboxes.contains { $0.address == address } }
         let now = Date.now
         let due = config.mailboxes.filter {
-            isDue(state.calendar[$0.address], hasPassword: passwords[$0.address] != nil, now: now, wake: wake)
+            isDue(state.calendar[$0.address], hasPassword: passwords[$0.address] != nil, now: now, wake: wake, force: force)
         }
         // Между чтениями окна — сегодня раз в минуту, только у ящиков на связи: сбой ждёт своего срока.
         let checks = config.mailboxes.filter { m in
@@ -239,7 +239,7 @@ final class App: NSObject, NSApplicationDelegate {
 
     /// Прочитать окно ящиков (или только сегодня) параллельно и положить результат в кэш.
     private func read(_ mailboxes: [Mailbox], onlyToday: Bool = false) async {
-        let mailboxes = mailboxes.filter { !reading.contains($0.address) }
+        let mailboxes = config.paused ? [] : mailboxes.filter { !reading.contains($0.address) }
         reading.formUnion(mailboxes.map(\.address))
         defer { reading.subtract(mailboxes.map(\.address)) }
         let first = today()
@@ -251,6 +251,17 @@ final class App: NSObject, NSApplicationDelegate {
             })
         }
         for (address, task) in reads { state.calendar[address] = await task.value }
+    }
+
+    /// «Обновить сейчас»: ящики читаются сразу, не дожидаясь своих 10 минут, календари Mac — заново.
+    func refreshNow() {
+        Task { await refresh(force: true) }
+    }
+
+    /// Пауза и её снятие. После паузы — сразу обычная проверка: что успело устареть, читается.
+    func togglePause() {
+        changeConfig("paused", !config.paused)
+        if !config.paused { Task { await refresh() } }
     }
 
     /// «Проверить снова», новый пароль, изменённые настройки ящика: остановка снимается, и ровно одно обращение.
@@ -427,7 +438,8 @@ final class App: NSObject, NSApplicationDelegate {
 
     /// Тревога связи с Exchange сейчас: ящик остановлен или сбой длится 10 минут.
     var currentOutage: (since: Date, lines: [String])? {
-        outage(state.calendar, mailboxes: config.mailboxes, now: .now)
+        // На паузе связи нет нарочно: это не тревога.
+        config.paused ? nil : outage(state.calendar, mailboxes: config.mailboxes, now: .now)
     }
 
     /// Связи нет 10 минут (остановка — сразу): окно один раз за эпизод открывается само, без звука, с открытой
@@ -457,7 +469,7 @@ final class App: NSObject, NSApplicationDelegate {
             // Будильник — вместо календаря, но не вместо аварийного значка и камеры МТС Линк. Мигает
             // время: прозрачное на нечётных секундах, ширина не прыгает. Со вторым поясом время — по нему
             // и его голубым, поэтому одной цветной картинкой.
-            if let wake = wakeUp(firsts, now: now, config: config), currentOutage == nil, opening == nil, linkCountdown == nil,
+            if let wake = wakeUp(firsts, now: now, config: config), currentOutage == nil, !config.paused, opening == nil, linkCountdown == nil,
                let alarm = NSImage(systemSymbolName: "alarm", accessibilityDescription: "Первая встреча") {
                 let home = config.showHomeTime
                 var digits: [NSAttributedString.Key: Any] = [
@@ -528,7 +540,10 @@ final class App: NSObject, NSApplicationDelegate {
                 return red
             }
             let calendar = NSImage(systemSymbolName: "calendar", accessibilityDescription: "Butler")!
-            return color.flatMap { calendar.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [$0])) } ?? calendar
+            guard config.paused else {
+                return color.flatMap { calendar.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [$0])) } ?? calendar
+            }
+            return pausedImage(calendar, color: color)
         }
         let ink = color ?? .black
         let camera = NSImage(systemSymbolName: "video.fill", accessibilityDescription: nil)?
@@ -566,6 +581,27 @@ final class App: NSObject, NSApplicationDelegate {
         return image
     }
 
+    /// Календарь с кружком паузы в правом нижнем углу; вокруг кружка — прорезь, как у системных значков с бейджем.
+    private func pausedImage(_ calendar: NSImage, color: NSColor?) -> NSImage {
+        let ink = color ?? .black
+        let icon = calendar.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [ink])) ?? calendar
+        let image = NSImage(size: icon.size, flipped: false) { rect in
+            icon.draw(in: rect)
+            let badge = NSRect(x: rect.maxX - 9, y: 0, width: 9, height: 9)
+            let context = NSGraphicsContext.current
+            ink.setFill()
+            context?.compositingOperation = .destinationOut
+            NSBezierPath(ovalIn: badge.insetBy(dx: -1.5, dy: -1.5)).fill()
+            context?.compositingOperation = .sourceOver
+            NSBezierPath(ovalIn: badge).fill()
+            for x in [badge.midX - 2.25, badge.midX + 0.75] { NSRect(x: x, y: badge.midY - 2.25, width: 1.5, height: 4.5).fill(using: .destinationOut) }
+            return true
+        }
+        image.isTemplate = color == nil
+        image.accessibilityDescription = "Butler на паузе"
+        return image
+    }
+
     var isShowingToday: Bool { shownDay == today() }
 
     /// Встречи показанного дня; `nil` — его расписание ещё не получено. Дни окна — из кэша ящиков, а без
@@ -596,7 +632,7 @@ final class App: NSObject, NSApplicationDelegate {
             dayErrors[day] = scheduleError
             return
         }
-        guard !window.contains(day), currentTime().timeIntervalSince(daysAt[day] ?? .distantPast) > 600,
+        guard !config.paused, !window.contains(day), currentTime().timeIntervalSince(daysAt[day] ?? .distantPast) > 600,
               let (from, to) = bounds(day) else { return }
         // День из свежего месяца — без своего чтения.
         if let read = monthRead(day), read.failure == nil, currentTime().timeIntervalSince(read.at) < 600 {
@@ -712,7 +748,7 @@ final class App: NSObject, NSApplicationDelegate {
     /// с соседним месяцем, и окно не перечитываются.
     private func readMonth(_ month: String) {
         let days = grid(month).joined().filter { !isFresh($0) }
-        guard currentTime().timeIntervalSince(months[month]?.at ?? .distantPast) > 600, monthLoad == nil,
+        guard !config.paused, currentTime().timeIntervalSince(months[month]?.at ?? .distantPast) > 600, monthLoad == nil,
               let first = days.first, let last = days.last, let from = bounds(first)?.start, let to = bounds(last)?.end
         else { return }
         // Ящик в сбое не читается, месяц собирается из остальных. Все в сбое — время попытки не ставится:

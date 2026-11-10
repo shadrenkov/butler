@@ -314,13 +314,15 @@ func retryAt(_ failure: Failure, failures: Int, now: Date) -> Date? {
 }
 
 /// Пора ли читать окно ящика: в порядке — раз в 10 минут; временный сбой — в его срок, а «нет сети» ещё и сразу
-/// после сна; остановленный — никогда, без пароля — когда пароль появится.
-func isDue(_ box: Box?, hasPassword: Bool, now: Date, wake: Bool) -> Bool {
+/// после сна; остановленный — никогда, без пароля — когда пароль появится. «Обновить сейчас» (`force`) не ждёт
+/// ни 10 минут, ни срока сбоя — кроме срока, который назвал сам сервер: раньше него ящик застрянет в троттлинге.
+func isDue(_ box: Box?, hasPassword: Bool, now: Date, wake: Bool, force: Bool = false) -> Bool {
     guard let box else { return true }
-    guard let failure = box.failure else { return now.timeIntervalSince(box.windowAt ?? .distantPast) >= 600 }
+    guard let failure = box.failure else { return force || now.timeIntervalSince(box.windowAt ?? .distantPast) >= 600 }
     if failure == .noPassword { return hasPassword }
     if failure.stops { return false }
-    if wake && failure == .offline { return true }
+    if case .throttled = failure { return now >= box.retryAt ?? .distantPast }
+    if force || wake && failure == .offline { return true }
     return now >= box.retryAt ?? .distantPast
 }
 
@@ -366,7 +368,7 @@ func color(_ light: Light) -> Color {
 }
 
 /// Точка связи у шестерёнки: зелёная — все ящики ответили, красная и часто мигает — хоть один нет, серая —
-/// проверять нечего. По щелчку — всплывашка со строкой на ящик.
+/// проверять нечего, на паузе — значок паузы. По щелчку — всплывашка со строкой на ящик, паузой и «Обновить сейчас».
 struct Indicator: View {
     @Bindable var app: App
 
@@ -376,31 +378,41 @@ struct Indicator: View {
         }
         let light: Light = lines.contains { $0.status.light == .red } ? .red : lines.contains { $0.status.light == .green } ? .green : .gray
         Button { app.connectionDetails.toggle() } label: {
-            // Ошибка — мигает быстро, чтобы заметить краем глаза: 0,3 с горит, 0,3 с гаснет.
-            // Пока идёт обращение к Exchange — плавно, в ожидании отсчёту хватает кадра в секунду.
-            TimelineView(.animation(minimumInterval: app.syncingSince != nil ? nil : light == .red ? 0.3 : 1)) { context in
-                let dim = light == .red && Int(context.date.timeIntervalSinceReferenceDate / 0.3) % 2 == 1
-                // Колечко вплотную к точке — обратный отсчёт до следующей проверки: за минуту тает до одной
-                // точки; пока идёт обращение, эта точка кружит вокруг, после него кольцо снова полное.
-                let left = app.syncingSince != nil ? 0 : 1 - context.date.timeIntervalSince(app.polledAt ?? context.date) / pollInterval
-                let turns = app.syncingSince.map { context.date.timeIntervalSince($0) } ?? 0
-                ZStack {
-                    // Тонкая рамка цвета точки — всегда на месте, отсчёт идёт внутри неё.
-                    Circle().stroke(color(light), lineWidth: 0.5).frame(width: 10.5, height: 10.5)
-                    Circle().trim(from: 0, to: max(left, 0.001)).rotation(.degrees(-90 + turns * 360))
-                        .stroke(color(light).opacity(0.5), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                        .frame(width: 7.5, height: 7.5)
-                    Circle().fill(color(light)).frame(width: 5, height: 5).opacity(dim ? 0.15 : 1)
+            if app.config.paused {
+                Image(systemName: "pause.fill").font(.system(size: 8, weight: .bold)).foregroundStyle(Ink.secondary)
+                    .frame(width: 11, height: 11)
+            } else {
+                // Ошибка — мигает быстро, чтобы заметить краем глаза: 0,3 с горит, 0,3 с гаснет.
+                // Пока идёт обращение к Exchange — плавно, в ожидании отсчёту хватает кадра в секунду.
+                TimelineView(.animation(minimumInterval: app.syncingSince != nil ? nil : light == .red ? 0.3 : 1)) { context in
+                    let dim = light == .red && Int(context.date.timeIntervalSinceReferenceDate / 0.3) % 2 == 1
+                    // Колечко вплотную к точке — обратный отсчёт до следующей проверки: за минуту тает до одной
+                    // точки; пока идёт обращение, эта точка кружит вокруг, после него кольцо снова полное.
+                    let left = app.syncingSince != nil ? 0 : 1 - context.date.timeIntervalSince(app.polledAt ?? context.date) / pollInterval
+                    let turns = app.syncingSince.map { context.date.timeIntervalSince($0) } ?? 0
+                    ZStack {
+                        // Тонкая рамка цвета точки — всегда на месте, отсчёт идёт внутри неё.
+                        Circle().stroke(color(light), lineWidth: 0.5).frame(width: 10.5, height: 10.5)
+                        Circle().trim(from: 0, to: max(left, 0.001)).rotation(.degrees(-90 + turns * 360))
+                            .stroke(color(light).opacity(0.5), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                            .frame(width: 7.5, height: 7.5)
+                        Circle().fill(color(light)).frame(width: 5, height: 5).opacity(dim ? 0.15 : 1)
+                    }
+                    .frame(width: 11, height: 11)
                 }
-                .frame(width: 11, height: 11)
             }
         }
         .buttonStyle(Hover(padding: 4))
-        .help("Связь с Exchange")
+        .help(app.config.paused ? "Связь с Exchange на паузе" : "Связь с Exchange")
         .popover(isPresented: $app.connectionDetails, arrowEdge: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(light == .red ? "Связь с Exchange: есть ошибки" : light == .green ? "Связь с Exchange в порядке" : "Связь с Exchange")
-                    .font(Ink.title).foregroundStyle(light == .red ? Ink.alert : Ink.primary)
+                if app.config.paused {
+                    Text("Связь с Exchange на паузе").font(Ink.title).foregroundStyle(Ink.primary)
+                    Text("Ящики не опрашиваются, календари Mac не обновляются").foregroundStyle(Ink.secondary)
+                } else {
+                    Text(light == .red ? "Связь с Exchange: есть ошибки" : light == .green ? "Связь с Exchange в порядке" : "Связь с Exchange")
+                        .font(Ink.title).foregroundStyle(light == .red ? Ink.alert : Ink.primary)
+                }
                 if lines.isEmpty { Text("Ящиков нет — задайте их в настройках").foregroundStyle(Ink.secondary) }
                 ForEach(lines, id: \.address) { line in
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -410,13 +422,23 @@ struct Indicator: View {
                             Text(line.status.text).foregroundStyle(line.status.light == .red ? Ink.alert : Ink.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                             // Остановленный ящик сам не пробует — снова только по кнопке или после смены настроек.
-                            if app.state.calendar[line.address]?.failure?.stops == true {
+                            if app.state.calendar[line.address]?.failure?.stops == true && !app.config.paused {
                                 Button("Проверить снова") { app.recheck(line.address) }
                                     .buttonStyle(Hover(padding: 4)).foregroundStyle(Ink.accent).padding(.leading, -4)
                             }
                         }
                     }
                 }
+                HStack(spacing: 12) {
+                    Button { app.togglePause() } label: {
+                        Label(app.config.paused ? "Продолжить" : "Пауза", systemImage: app.config.paused ? "play.fill" : "pause.fill")
+                    }
+                    // На паузе и пока идёт обращение обновлять нечем: запрос либо запрещён, либо уже идёт.
+                    Button { app.refreshNow() } label: { Label("Обновить сейчас", systemImage: "arrow.clockwise") }
+                        .disabled(app.config.paused || app.syncingSince != nil)
+                        .opacity(app.config.paused || app.syncingSince != nil ? 0.4 : 1)
+                }
+                .buttonStyle(Hover(padding: 4)).foregroundStyle(Ink.accent).padding(.leading, -4).padding(.top, 2)
             }
             .font(Ink.body)
             .padding(10)

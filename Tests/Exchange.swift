@@ -273,6 +273,11 @@ private func failure(_ result: Result<XMLDocument, Failure>) -> Failure? {
     #expect(!isDue(Box(failure: .unauthorized), hasPassword: true, now: t0 + 86_400, wake: true))
     #expect(!isDue(Box(failure: .noPassword), hasPassword: false, now: t0, wake: false))
     #expect(isDue(Box(failure: .noPassword), hasPassword: true, now: t0, wake: false))
+    // «Обновить сейчас» не ждёт ни 10 минут, ни срока сбоя, но срок сервера и остановку не нарушает.
+    #expect(isDue(Box(windowAt: t0), hasPassword: true, now: t0 + 1, wake: false, force: true))
+    #expect(isDue(Box(failure: .server("x"), retryAt: t0 + 1800), hasPassword: true, now: t0, wake: false, force: true))
+    #expect(!isDue(throttled, hasPassword: true, now: t0 + 60, wake: false, force: true))
+    #expect(!isDue(Box(failure: .unauthorized), hasPassword: true, now: t0, wake: false, force: true))
 }
 
 @Test func alarmAfterTenMinutesOfFailureOrAtOnceWhenStopped() {
