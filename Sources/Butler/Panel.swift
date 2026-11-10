@@ -660,7 +660,7 @@ struct Week: View {
         let todayOver = !timed.isEmpty && timed.allSatisfy { $0.end <= app.now }
         // Прямоугольники вытянуты вверх, к самому краю карточки.
         let (width, height): (CGFloat, CGFloat) = (6, 8)
-        HStack(spacing: 3) {
+        HStack(spacing: 4.5) {
             ForEach(week(app.shownDay), id: \.self) { d in
                 // Свой тон у каждого дня: будни серые, выходные розоватые. Показанный день — тем же тоном, только гуще;
                 // прошедшие бледнее и зачёркнуты своим же тоном.
