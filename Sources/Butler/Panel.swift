@@ -647,8 +647,8 @@ func dayTitle(_ day: String) -> String? {
 }
 
 /// Неделя показанного дня — семь квадратиков у верхнего края карточки: бледная краска, сквозь которую видно
-/// зерно листа, будто их напечатали. Выходные розоватые, сам день бледно-голубой, как второй часовой пояс,
-/// прошедшие дни слегка зачёркнуты тем же голубым (сегодня — когда кончилась последняя встреча), отмеченные в календаре — в красной рамке. Под квадратиком — точки важных встреч, по пикселю.
+/// зерно листа, будто их напечатали. Выходные розоватые, сам день — тем же тоном, только гуще,
+/// прошедшие дни бледнее и слегка зачёркнуты (сегодня — когда кончилась последняя встреча), отмеченные в календаре — в красной рамке. Под квадратиком — точки важных встреч, по пикселю.
 struct Week: View {
     let app: App
 
@@ -661,18 +661,22 @@ struct Week: View {
         let size: CGFloat = 7.5
         HStack(spacing: 3) {
             ForEach(week(app.shownDay), id: \.self) { d in
+                // Свой тон у каждого дня: будни серые, выходные розоватые. Показанный день — тем же тоном, только гуще;
+                // прошедшие бледнее и зачёркнуты своим же тоном.
+                let tone = nonWorking(d, workdays: app.state.workdays) ? ink(0xE07A64) : Ink.secondary
+                let past = d < current || d == current && todayOver
+                let shown = d == app.shownDay
                 VStack(spacing: 1.2) {
                     RoundedRectangle(cornerRadius: 1.5)
-                        .fill(d == app.shownDay ? Ink.home.opacity(0.3)
-                              : nonWorking(d, workdays: app.state.workdays) ? ink(0xE07A64).opacity(0.22) : Ink.secondary.opacity(0.17))
+                        .fill(tone.opacity((tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 2.4 : past ? 0.55 : 1)))
                         .frame(width: size, height: size)
                         .overlay {
-                            if d < current || d == current && todayOver {
+                            if past {
                                 Path { path in
                                     path.move(to: CGPoint(x: 0.5, y: size - 0.5))
                                     path.addLine(to: CGPoint(x: size - 0.5, y: 0.5))
                                 }
-                                .stroke(Ink.home.opacity(0.3), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
+                                .stroke(tone.opacity(shown ? 0.55 : 0.3), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
                             }
                         }
                     let vip = min(app.knownMeetings(d)?.filter { important($0, app.state) }.count ?? 0, 3)
