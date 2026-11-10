@@ -367,7 +367,7 @@ func color(_ light: Light) -> Color {
     }
 }
 
-/// Точка связи у шестерёнки: зелёная — все ящики ответили, красная и часто мигает — хоть один нет, серая —
+/// Точка связи у шестерёнки в кольце отсчёта: зелёная — все ящики ответили, красная и часто мигает — хоть один нет, серая —
 /// проверять нечего, на паузе — значок паузы. По щелчку — всплывашка со строкой на ящик, паузой и «Обновить сейчас».
 struct Indicator: View {
     @Bindable var app: App
@@ -382,22 +382,28 @@ struct Indicator: View {
                 Image(systemName: "pause.fill").font(.system(size: 8, weight: .bold)).foregroundStyle(Ink.alert)
                     .frame(width: 11, height: 11)
             } else {
-                // Ошибка — мигает быстро, чтобы заметить краем глаза: 0,3 с горит, 0,3 с гаснет.
-                // Пока идёт обращение к Exchange — плавно, в ожидании отсчёту хватает кадра в секунду.
-                TimelineView(.animation(minimumInterval: app.syncingSince != nil ? nil : light == .red ? 0.3 : 1)) { context in
+                // Ошибка — точка мигает быстро, чтобы заметить краем глаза: 0,3 с горит, 0,3 с гаснет. Пока идёт
+                // обращение к Exchange — плавно; отсчёту хватает четырёх кадров в секунду: шаг — ровно секунда.
+                TimelineView(.animation(minimumInterval: app.syncingSince != nil ? nil : 0.25)) { context in
                     let dim = light == .red && Int(context.date.timeIntervalSinceReferenceDate / 0.3) % 2 == 1
-                    // Колечко вплотную к точке — обратный отсчёт до следующей проверки: за минуту тает до одной
-                    // точки; пока идёт обращение, эта точка кружит вокруг, после него кольцо снова полное.
-                    let left = app.syncingSince != nil ? 0 : 1 - context.date.timeIntervalSince(app.polledAt ?? context.date) / pollInterval
-                    let turns = app.syncingSince.map { context.date.timeIntervalSince($0) } ?? 0
+                    // Кольцо в 1 pt от точки: бледная дорожка, по ней от 12 часов посекундно растёт дуга цвета
+                    // точки — отсчёт до следующей проверки. Пока идёт обращение, по дорожке кружат две дуги по 60°.
                     ZStack {
-                        // Тонкая рамка цвета точки — всегда на месте, отсчёт идёт внутри неё.
-                        Circle().stroke(color(light), lineWidth: 0.5).frame(width: 10.5, height: 10.5)
-                        Circle().trim(from: 0, to: max(left, 0.001)).rotation(.degrees(-90 + turns * 360))
-                            .stroke(color(light).opacity(0.5), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                            .frame(width: 7.5, height: 7.5)
+                        Circle().stroke(color(light).opacity(0.25), lineWidth: 2)
+                        if let since = app.syncingSince {
+                            let turns = context.date.timeIntervalSince(since)
+                            ForEach([0.0, 0.5], id: \.self) { start in
+                                Circle().trim(from: start, to: start + 1 / 6).stroke(color(light), lineWidth: 2)
+                                    .rotationEffect(.degrees(-90 + turns * 360))
+                            }
+                        } else {
+                            let elapsed = floor(context.date.timeIntervalSince(app.polledAt ?? context.date))
+                            Circle().trim(from: 0, to: min(elapsed / pollInterval, 1)).stroke(color(light), lineWidth: 2)
+                                .rotationEffect(.degrees(-90))
+                        }
                         Circle().fill(color(light)).frame(width: 5, height: 5).opacity(dim ? 0.15 : 1)
                     }
+                    .frame(width: 9, height: 9)
                     .frame(width: 11, height: 11)
                 }
             }
