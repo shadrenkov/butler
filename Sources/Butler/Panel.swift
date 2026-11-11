@@ -277,8 +277,11 @@ struct DayView: View {
                     Scale(app: app, meetings: meetings, isToday: app.isShowingToday, available: geo.size.height)
                 }
             } else if meetings != nil {
-                Text("Свободный день").font(Ink.title).foregroundStyle(Ink.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 14) {
+                    Postcard(day: app.shownDay)
+                    Text("Свободный день").font(Ink.title).foregroundStyle(Ink.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if isEmpty {
                 // Подсказка — внизу, у шестерёнки: см. `Welcome`.
                 Spacer()
@@ -627,6 +630,20 @@ private struct Loading: View {
                 try? await Task.sleep(for: .milliseconds(500))
                 shown = true
             }
+    }
+}
+
+/// Открытка свободного дня: картинки из `Pictures/` по очереди, у одного дня — всегда одна и та же. Фон у них
+/// прозрачный, а сама краска чуть просвечивает — сквозь неё видно зерно листа.
+struct Postcard: View {
+    let day: String
+
+    var body: some View {
+        let names = ["beach"]
+        let number = bounds(day).map { Int($0.start.timeIntervalSince1970 / 86_400) } ?? 0
+        if let image = NSImage(named: names[abs(number) % names.count]) {
+            Image(nsImage: image).resizable().scaledToFit().frame(width: 240).opacity(0.85)
+        }
     }
 }
 
