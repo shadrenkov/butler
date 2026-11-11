@@ -282,6 +282,8 @@ struct Scale: View {
         var fills = false
         var angle = 0.0
         var opacity = 1.0
+        /// Растаять к правому нижнему углу — под индикатором и шестерёнкой.
+        var fadesCorner = false
     }
 
     /// Рисунки дня по слоям: пейзажи под подписями, вставки над подписями, кляксы над карточками.
@@ -307,7 +309,8 @@ struct Scale: View {
         if room >= 60, let name = choice.pick(landscapes, at: day.end) {
             // Заполняет высоту, обрезаясь по бокам, — но не больше чем вдвое: в совсем короткий день сверху поле.
             let height = min(room, (width + 24) / 2)
-            art.under.append(Piece(name: name, rect: CGRect(x: -12, y: top + room - height, width: width + 24, height: height), fills: true))
+            art.under.append(Piece(name: name, rect: CGRect(x: -12, y: top + room - height, width: width + 24, height: height), fills: true,
+                                   fadesCorner: true))
         }
 
         var spots: [(rect: CGRect, time: Date)] = []
@@ -359,6 +362,14 @@ struct Scale: View {
             Picture(name: piece.name, fills: piece.fills)
                 .frame(width: piece.rect.width, height: piece.rect.height)
                 .clipped()
+                .mask {
+                    if piece.fadesCorner {
+                        RadialGradient(stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 0.3), .init(color: .black, location: 1)],
+                                       center: .bottomTrailing, startRadius: 0, endRadius: 220)
+                    } else {
+                        Rectangle()
+                    }
+                }
                 .rotationEffect(.degrees(piece.angle))
                 .opacity(piece.opacity)
                 .offset(x: piece.rect.minX, y: piece.rect.minY)
