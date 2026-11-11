@@ -279,7 +279,9 @@ struct DayView: View {
             } else if meetings != nil {
                 // Надпись — посередине карточки, открытка — над ней.
                 Text("Свободный день").font(Ink.title).foregroundStyle(Ink.secondary)
-                    .overlay(alignment: .top) { Postcard(day: app.shownDay).alignmentGuide(.top) { $0[.bottom] + 14 } }
+                    .overlay(alignment: .top) {
+                        if app.config.pictures { Postcard(day: app.shownDay).alignmentGuide(.top) { $0[.bottom] + 14 } }
+                    }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if isEmpty {
                 // Подсказка — внизу, у шестерёнки: см. `Welcome`.
@@ -669,7 +671,7 @@ func dayTitle(_ day: String) -> String? {
     return text.prefix(1).uppercased() + text.dropFirst()
 }
 
-/// Неделя показанного дня — семь прямоугольников справа от даты: бледная краска, сквозь которую видно зерно
+/// Неделя показанного дня — семь прямоугольников справа от даты, над каждым — его число: бледная краска, сквозь которую видно зерно
 /// листа, будто их напечатали. Будни серые, выходные розоватые, сам день — тем же тоном, только гуще, прошедшие
 /// дни бледнее и слегка зачёркнуты (сегодня — когда кончилась последняя встреча), отмеченные в календаре — в
 /// красной рамке. Под прямоугольником — точки важных встреч; они не сдвигают его с середины строки.
@@ -689,9 +691,20 @@ struct Week: View {
                 let past = d < current || d == current && todayOver
                 let shown = d == app.shownDay
                 let vip = min(app.knownMeetings(d)?.filter { important($0, app.state) }.count ?? 0, 3)
+                let fill = (tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 3.2 : past ? 0.55 : 1.3)
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(tone.opacity((tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 3.2 : past ? 0.55 : 1.3)))
+                    .fill(tone.opacity(fill))
                     .frame(width: width, height: height)
+                    // Число дня — над прямоугольником, тем же тоном, только ярче: самым узким начертанием системного
+                    // шрифта две цифры влезают в его ширину. Прямоугольник при этом не сдвигается.
+                    .overlay(alignment: .top) {
+                        Text(String(Int(d.suffix(2)) ?? 0))
+                            .font(.system(size: 6.5, weight: .semibold).width(.compressed))
+                            .monospacedDigit()
+                            .foregroundStyle(tone.opacity(max(0.4, min(1, fill * 2.6))))
+                            .fixedSize()
+                            .alignmentGuide(.top) { $0[.bottom] + 1 }
+                    }
                     .overlay {
                         if past {
                             Path { path in

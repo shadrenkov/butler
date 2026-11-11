@@ -193,11 +193,11 @@ struct Scale: View {
             // Под концом дня — место под полоску пейзажа, если день и без него помещается целиком: все карточки
             // остаются в полные строки.
             let short = ruler(day, available: available - 100)
-            let roomy = day.placed.allSatisfy { short.y($0.meeting.end) - short.y($0.meeting.start) >= neededHeight($0.meeting, lines: 3) - 0.5 }
+            let roomy = app.config.pictures && day.placed.allSatisfy { short.y($0.meeting.end) - short.y($0.meeting.start) >= neededHeight($0.meeting, lines: 3) - 0.5 }
             let ruler = roomy ? short : ruler(day, available: available)
             let lanes = day.placed.map(\.lanes).max() ?? 1
             let width = windowWidth(lanes: lanes) - 24
-            let art = artwork(day, ruler: ruler, width: width)
+            let art = app.config.pictures ? artwork(day, ruler: ruler, width: width) : Artwork()
             let first = day.start + 15 * 60, last = day.end - 15 * 60
             let showsNow = isToday && app.now > day.start && app.now < day.end
             ZStack(alignment: .topLeading) {
@@ -382,9 +382,10 @@ struct Scale: View {
         }
     }
 
-    /// Сколько строк у надписи промежутка: в высоком — две, если есть время второго пояса.
+    /// Сколько строк у надписи промежутка: в высоком — две, если есть время второго пояса и рисунки, которым это
+    /// освобождает место.
     private func labelLines(_ height: CGFloat) -> Int {
-        app.config.showHomeTime && height >= 44 ? 2 : 1
+        app.config.pictures && app.config.showHomeTime && height >= 44 ? 2 : 1
     }
 
     /// «свободно 1 ч · 07:00–08:00» по центру промежутка; в высоком промежутке — в две строки, время второго пояса

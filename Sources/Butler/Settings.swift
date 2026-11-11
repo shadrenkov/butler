@@ -45,6 +45,8 @@ struct Config: Decodable {
     var wakeUpBlinkHours: Double = 9
     /// Пауза: ящики не читаются, календари Mac не перечитываются — показывается последнее полученное.
     var paused = false
+    /// Рисунки Work&Life: открытка свободного дня, вставки в перерывах, пейзаж под концом дня и кляксы.
+    var pictures = true
 
     /// Запись `hidden`: Butler пишет объект с признаком серии, а старая или ручная строка — только название.
     struct Hidden: Decodable {
@@ -102,13 +104,14 @@ struct Config: Decodable {
         wakeUpHours = try value(.wakeUpHours, wakeUpHours)
         wakeUpBlinkHours = try value(.wakeUpBlinkHours, wakeUpBlinkHours)
         paused = try value(.paused, paused)
+        pictures = try value(.pictures, pictures)
     }
 
     private enum CodingKeys: String, CodingKey {
         case reminderOffsetSeconds, vipReminderOffsetSeconds, reminderRepeats, homeTimeZone, showHomeTime, hidden
         case playAtDesk, soundAtDesk, playAway, soundAway, awayVolume, awayRepeats, playInCall, soundInCall
         case awayAfterMinutes, autoOpenMTSLink, autoOpenSeconds, mailboxes, calendars, vipOrganizers, vipMeetings, markedDays
-        case wakeUpHours, wakeUpBlinkHours, paused
+        case wakeUpHours, wakeUpBlinkHours, paused, pictures
     }
 
     /// Играть ли звук в этой ситуации и какой; ключи — те же, что в файле.
@@ -288,6 +291,10 @@ struct SettingsView: View {
                     Toggle("Второй часовой пояс", isOn: Binding(get: { app.config.showHomeTime },
                                                                 set: { app.changeConfig("showHomeTime", $0) }))
                     zone.disabled(!app.config.showHomeTime).padding(.leading, 18)
+                }
+                section("Оформление") {
+                    Toggle("Добавить картинки Work&Life", isOn: Binding(get: { app.config.pictures },
+                                                                       set: { app.changeConfig("pictures", $0) }))
                 }
                 meetings
                 calendars
