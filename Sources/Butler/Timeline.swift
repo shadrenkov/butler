@@ -195,9 +195,9 @@ struct Scale: View {
             let short = ruler(day, available: available - 100)
             let roomy = day.placed.allSatisfy { short.y($0.meeting.end) - short.y($0.meeting.start) >= neededHeight($0.meeting, lines: 3) - 0.5 }
             let ruler = roomy ? short : ruler(day, available: available)
-            let cup = cupSpot(day, ruler: ruler, width: windowWidth(lanes: day.placed.map(\.lanes).max() ?? 1) - 24)
             let lanes = day.placed.map(\.lanes).max() ?? 1
             let width = windowWidth(lanes: lanes) - 24
+            let art = artwork(day, ruler: ruler, width: width)
             let first = day.start + 15 * 60, last = day.end - 15 * 60
             let showsNow = isToday && app.now > day.start && app.now < day.end
             ZStack(alignment: .topLeading) {
@@ -221,8 +221,8 @@ struct Scale: View {
                             .offset(y: ruler.y(hour) + 2)
                     }
                 }
-                // Пейзаж — под подписями и карточками.
-                strip(day, ruler: ruler, width: width)
+                // Пейзажи — под подписями и карточками.
+                pieces(art.under)
                 edge(first).offset(x: gutter, y: ruler.y(first) - rowHeight - 3)
                 edge(last).offset(x: gutter, y: ruler.y(last) + 3)
                 ForEach(day.gaps, id: \.start) { gap in
@@ -230,13 +230,8 @@ struct Scale: View {
                         .frame(width: width - gutter, height: ruler.y(gap.end) - ruler.y(gap.start))
                         .offset(x: gutter, y: ruler.y(gap.start))
                 }
-                // Чашка — поверх подписи перерыва, если задевает её: акварель сквозь печать.
-                if let cup {
-                    let cups = ["cup1", "cup2", "tea1", "tea2"]
-                    Picture(name: cups[Int(chance(day.start, 1) * CGFloat(cups.count))])
-                        .frame(width: cup.width, height: cup.height)
-                        .offset(x: cup.minX, y: cup.minY)
-                }
+                // Вставки — поверх подписи перерыва, если задевают её: акварель сквозь печать.
+                pieces(art.middle)
                 if showsNow {
                     // Текущее время — как подпись часа, только цвета своей линии и серединой на ней.
                     Text(hhmm(app.now)).font(Ink.body).monospacedDigit().foregroundStyle(Ink.accent)
@@ -259,7 +254,8 @@ struct Scale: View {
                         .offset(x: gutter + CGFloat(placed.lane) * (laneWidth + cardGap), y: top + 1 + cardMargin)
                         .zIndex(1)
                 }
-                blots(day, ruler: ruler, width: width)
+                // Кляксы — поверх карточек, как брызги чернил на листе; щелчков не ловят.
+                pieces(art.over).allowsHitTesting(false).zIndex(1.5)
             }
             .frame(width: width, height: ruler.height, alignment: .topLeading)
         }
@@ -279,54 +275,53 @@ struct Scale: View {
             .font(Ink.body).monospacedDigit().frame(height: rowHeight)
     }
 
-    /// Пейзаж под концом дня — во всю ширину карточки, от линии конца дня до нижнего края карточки; подпись конца
-    /// дня, индикатор и шестерёнка лежат поверх него. Пейзаж заполняет высоту, обрезаясь по бокам, — но не больше
-    /// чем вдвое: в совсем короткий день над ним остаётся пустое поле.
-    @ViewBuilder private func strip(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> some View {
+    /// Рисунок на шкале: где, повёрнут ли, заполняет ли рамку, обрезаясь.
+    struct Piece {
+        let name: String
+        let rect: CGRect
+        var fills = false
+        var angle = 0.0
+        var opacity = 1.0
+    }
+
+    /// Рисунки дня по слоям: пейзажи под подписями, вставки над подписями, кляксы над карточками.
+    struct Artwork {
+        var under: [Piece] = []
+        var middle: [Piece] = []
+        var over: [Piece] = []
+    }
+
+    /// Где и что рисовать. Под концом дня — пейзаж во всю ширину карточки, до её нижнего края: подпись конца,
+    /// индикатор и шестерёнка лежат поверх. Перерыв от двух часов — пейзаж во всю строку, надпись поверх. Перерыв
+    /// от часа — вставка у правого края: левая часть шкалы — для дела. Пустая дорожка от 30 минут рядом с
+    /// пропущенной встречей — вставка посередине. И две-три большие бледные кляксы, каждая в своей полосе по
+    /// высоте, по очереди слева и справа. Вид рисунка за день не повторяется.
+    private func artwork(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> Artwork {
+        var art = Artwork()
+        var choice = Choice(day: day.start)
+        let lane = width - gutter
+
         let top = ruler.y(day.end - 15 * 60)
         // Шкала кончается на 12 pt выше края карточки — у её нижнего поля.
         let room = available + 12 - top
-        if room >= 60 {
-            let names = ["horizon1", "horizon2", "sunset1", "sunset2", "hills1", "hills2"]
+        if room >= 60, let name = choice.pick(landscapes, at: day.end) {
+            // Заполняет высоту, обрезаясь по бокам, — но не больше чем вдвое: в совсем короткий день сверху поле.
             let height = min(room, (width + 24) / 2)
-            Picture(name: names[Int(chance(day.start, 2) * CGFloat(names.count))], fills: true)
-                .frame(width: width + 24, height: height)
-                .clipped()
-                .offset(x: -12, y: top + room - height)
+            art.under.append(Piece(name: name, rect: CGRect(x: -12, y: top + room - height, width: width + 24, height: height), fills: true))
         }
-    }
 
-    /// Две-три большие бледные кляксы — поверх карточек, как брызги чернил на листе; щелчков не ловят. Каждая —
-    /// в своей полосе по высоте и по очереди то слева, то справа, чтобы не сбивались в кучу.
-    private func blots(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> some View {
-        let names = ["blot1", "blot2", "blot3"]
-        let count = 2 + Int(chance(day.start, 3) * 2)
-        let band = ruler.height / CGFloat(count)
-        let half = (width - gutter) / 2
-        let right = chance(day.start, 4) < 0.5
-        return ForEach(0..<count, id: \.self) { i in
-            let size = 100 + chance(day.start, 40 + i) * 80
-            Picture(name: names[(Int(chance(day.start, 50) * 3) + i) % names.count])
-                .frame(width: size, height: size)
-                .rotationEffect(.degrees(Double(chance(day.start, 60 + i)) * 360))
-                .opacity(0.25)
-                .offset(x: gutter + ((i % 2 == 0) == right ? half : 0) + chance(day.start, 70 + i) * max(0, half - size),
-                        y: band * CGFloat(i) + chance(day.start, 80 + i) * max(0, band - size))
-                .allowsHitTesting(false)
-                .zIndex(1.5)
-        }
-    }
-
-    /// Место для чашки — одно на день, самое просторное: перерыв от часа (чашка у правого края — левая часть шкалы
-    /// для дела) или пустая
-    /// дорожка от 30 минут рядом с пропущенной встречей. Тесно — чашки нет.
-    private func cupSpot(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> CGRect? {
-        let lane = width - gutter
-        var spots: [CGRect] = []
-        for gap in day.gaps where gap.end.timeIntervalSince(gap.start) >= 3600 {
+        var spots: [(rect: CGRect, time: Date)] = []
+        for gap in day.gaps {
+            let length = gap.end.timeIntervalSince(gap.start)
             let height = ruler.y(gap.end) - ruler.y(gap.start)
-            let size = min(height - 10, 100)
-            spots.append(CGRect(x: width - 12 - size, y: ruler.y(gap.start) + (height - size) / 2, width: size, height: size))
+            if length >= 2 * 3600, let name = choice.pick(landscapes, at: gap.start) {
+                let strip = min(height - 8, lane / 2.5)
+                art.under.append(Piece(name: name, rect: CGRect(x: gutter, y: ruler.y(gap.start) + (height - strip) / 2, width: lane, height: strip),
+                                       fills: true))
+            } else if length >= 3600 {
+                let size = min(height - 10, 100)
+                spots.append((CGRect(x: width - 12 - size, y: ruler.y(gap.start) + (height - size) / 2, width: size, height: size), gap.start))
+            }
         }
         for hole in holes(day.placed) where hole.end.timeIntervalSince(hole.start) >= 1800 {
             let skipped = day.placed.contains { p in
@@ -337,20 +332,37 @@ struct Scale: View {
             let laneWidth = (lane - cardGap * CGFloat(hole.lanes - 1)) / CGFloat(hole.lanes)
             let height = ruler.y(hole.end) - ruler.y(hole.start)
             let size = min(height - 10, laneWidth - 10, 100)
-            spots.append(CGRect(x: gutter + CGFloat(hole.lane) * (laneWidth + cardGap) + (laneWidth - size) / 2,
-                                y: ruler.y(hole.start) + (height - size) / 2, width: size, height: size))
+            spots.append((CGRect(x: gutter + CGFloat(hole.lane) * (laneWidth + cardGap) + (laneWidth - size) / 2,
+                                 y: ruler.y(hole.start) + (height - size) / 2, width: size, height: size), hole.start))
         }
-        return spots.filter { $0.width >= 44 }.max { $0.width < $1.width }
+        // Самые просторные места — первыми: им достаются рисунки, если видов на всех не хватит.
+        for spot in spots.filter({ $0.rect.width >= 44 }).sorted(by: { $0.rect.width > $1.rect.width }) {
+            if let name = choice.pick(vignettes, at: spot.time) { art.middle.append(Piece(name: name, rect: spot.rect)) }
+        }
+
+        let count = 2 + Int(choice.next() * 2)
+        let band = ruler.height / CGFloat(count)
+        let half = lane / 2
+        let right = choice.next() < 0.5
+        for i in 0..<count {
+            guard let name = choice.pick(blots, at: day.start + 13 * 3600) else { break }
+            let size = 100 + choice.next() * 80
+            let x = gutter + ((i % 2 == 0) == right ? half : 0) + choice.next() * max(0, half - size)
+            let y = band * CGFloat(i) + choice.next() * max(0, band - size)
+            art.over.append(Piece(name: name, rect: CGRect(x: x, y: y, width: size, height: size), angle: Double(choice.next()) * 360, opacity: 0.25))
+        }
+        return art
     }
 
-    /// n-е случайное число от 0 до 1 для дня: у одного дня всегда одно и то же.
-    private func chance(_ day: Date, _ n: Int) -> CGFloat {
-        var x = UInt64(truncatingIfNeeded: Int((day.timeIntervalSince1970 / 86_400).rounded())) &* 6_364_136_223_846_793_005
-            &+ UInt64(n) &* 1_442_695_040_888_963_407
-        x ^= x >> 33
-        x = x &* 0xff51_afd7_ed55_8ccd
-        x ^= x >> 33
-        return CGFloat(x % 10_000) / 10_000
+    private func pieces(_ list: [Piece]) -> some View {
+        ForEach(Array(list.enumerated()), id: \.offset) { _, piece in
+            Picture(name: piece.name, fills: piece.fills)
+                .frame(width: piece.rect.width, height: piece.rect.height)
+                .clipped()
+                .rotationEffect(.degrees(piece.angle))
+                .opacity(piece.opacity)
+                .offset(x: piece.rect.minX, y: piece.rect.minY)
+        }
     }
 
     /// «свободно 1 ч · 07:00–08:00» по центру промежутка.

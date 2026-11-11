@@ -21,7 +21,7 @@ app: build
 	cp .build/release/Butler $(APP)/Contents/MacOS/Butler
 	cp Support/Info.plist $(APP)/Contents/Info.plist
 	mkdir -p $(APP)/Contents/Resources
-	cp Pictures/*.png $(APP)/Contents/Resources/
+	cp Pictures/* $(APP)/Contents/Resources/
 	@if security find-certificate -c Butler >/dev/null 2>&1; then \
 		codesign --force --sign Butler $(APP); \
 	else \

@@ -1,13 +1,14 @@
-// Картинка из сгенерированной на белом: `swift Support/postcard.swift вход.png выход.png [ширина]`.
+// Картинка из сгенерированной на белом: `swift Support/postcard.swift вход.png выход.heic [ширина]`.
 // Белый фон становится прозрачным — чем светлее точка, тем прозрачнее, поэтому мягкие акварельные края остаются
 // мягкими, — пустые поля обрезаются, ширина — не больше 480 px (240 pt на экране Retina) или заданной; мелкое
-// не растягивается.
+// не растягивается. HEIC хранит прозрачность и в разы легче PNG.
 
 import AppKit
+import UniformTypeIdentifiers
 
 let arguments = CommandLine.arguments
 guard [3, 4].contains(arguments.count), let source = NSImage(contentsOfFile: arguments[1])?.cgImage(forProposedRect: nil, context: nil, hints: nil)
-else { fatalError("swift Support/postcard.swift вход.png выход.png [ширина]") }
+else { fatalError("swift Support/postcard.swift вход.png выход.heic [ширина]") }
 let limit = arguments.count == 4 ? Int(arguments[3])! : 480
 
 let (width, height) = (source.width, source.height)
@@ -40,6 +41,7 @@ let outWidth = min(limit, cut.width), outHeight = Int((Double(cut.height) * Doub
 let out = CGContext(data: nil, width: outWidth, height: outHeight, bitsPerComponent: 8, bytesPerRow: 0, space: space, bitmapInfo: flags)!
 out.interpolationQuality = .high
 out.draw(cut, in: CGRect(x: 0, y: 0, width: outWidth, height: outHeight))
-let png = NSBitmapImageRep(cgImage: out.makeImage()!).representation(using: .png, properties: [:])!
-try! png.write(to: URL(fileURLWithPath: arguments[2]))
+let file = CGImageDestinationCreateWithURL(URL(fileURLWithPath: arguments[2]) as CFURL, UTType.heic.identifier as CFString, 1, nil)!
+CGImageDestinationAddImage(file, out.makeImage()!, [kCGImageDestinationLossyCompressionQuality: 0.7] as CFDictionary)
+CGImageDestinationFinalize(file)
 print("\(outWidth)×\(outHeight)")
