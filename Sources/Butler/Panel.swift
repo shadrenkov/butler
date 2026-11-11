@@ -280,7 +280,8 @@ struct DayView: View {
                 // Надпись — посередине карточки, открытка — над ней.
                 Text("Свободный день").font(Ink.title).foregroundStyle(Ink.secondary)
                     .overlay(alignment: .top) {
-                        if app.config.pictures { Postcard(day: app.shownDay).alignmentGuide(.top) { $0[.bottom] + 14 } }
+                        ZStack { if app.config.pictures { Postcard(day: app.shownDay) } }
+                            .alignmentGuide(.top) { $0[.bottom] + 14 }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if isEmpty {
