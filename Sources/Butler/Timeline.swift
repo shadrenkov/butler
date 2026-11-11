@@ -282,7 +282,7 @@ struct Scale: View {
         var fills = false
         var angle = 0.0
         var opacity = 1.0
-        /// Растаять к правому нижнему углу — под индикатором и шестерёнкой.
+        /// Побледнеть в правом нижнем углу — под индикатором и шестерёнкой, чтобы они не терялись в деталях.
         var fadesCorner = false
     }
 
@@ -359,8 +359,9 @@ struct Scale: View {
                 .clipped()
                 .mask {
                     if piece.fadesCorner {
-                        RadialGradient(stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 0.3), .init(color: .black, location: 1)],
-                                       center: .bottomTrailing, startRadius: 0, endRadius: 220)
+                        RadialGradient(stops: [.init(color: .black.opacity(0.4), location: 0), .init(color: .black.opacity(0.4), location: 0.4),
+                                               .init(color: .black, location: 1)],
+                                       center: .bottomTrailing, startRadius: 0, endRadius: 90)
                     } else {
                         Rectangle()
                     }
