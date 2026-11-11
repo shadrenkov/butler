@@ -190,7 +190,12 @@ struct Scale: View {
 
     var body: some View {
         if let day = layout(meetings) {
-            let ruler = ruler(day, available: available)
+            // Под концом дня — место под полоску пейзажа, если день и без него помещается целиком: все карточки
+            // остаются в полные строки.
+            let short = ruler(day, available: available - 84)
+            let roomy = day.placed.allSatisfy { short.y($0.meeting.end) - short.y($0.meeting.start) >= neededHeight($0.meeting, lines: 3) - 0.5 }
+            let ruler = roomy ? short : ruler(day, available: available)
+            let cup = cupSpot(day, ruler: ruler, width: windowWidth(lanes: day.placed.map(\.lanes).max() ?? 1) - 24)
             let lanes = day.placed.map(\.lanes).max() ?? 1
             let width = windowWidth(lanes: lanes) - 24
             let first = day.start + 15 * 60, last = day.end - 15 * 60
@@ -217,12 +222,15 @@ struct Scale: View {
                     }
                 }
                 // Рисунки — под подписями и карточками.
-                decor(day, ruler: ruler, width: width)
+                decor(day, ruler: ruler, width: width, cup: cup?.rect)
                 edge(first).offset(x: gutter, y: ruler.y(first) - rowHeight - 3)
                 edge(last).offset(x: gutter, y: ruler.y(last) + 3)
                 ForEach(day.gaps, id: \.start) { gap in
+                    // Перерыв с чашкой: чашка слева, надпись — вправо.
+                    let beside = cup?.gap == gap.start
                     free(gap)
-                        .frame(width: width - gutter, height: ruler.y(gap.end) - ruler.y(gap.start))
+                        .padding(.trailing, beside ? 12 : 0)
+                        .frame(width: width - gutter, height: ruler.y(gap.end) - ruler.y(gap.start), alignment: beside ? .trailing : .center)
                         .offset(x: gutter, y: ruler.y(gap.start))
                 }
                 if showsNow {
@@ -247,6 +255,7 @@ struct Scale: View {
                         .offset(x: gutter + CGFloat(placed.lane) * (laneWidth + cardGap), y: top + 1 + cardMargin)
                         .zIndex(1)
                 }
+                blots(day, ruler: ruler, width: width)
             }
             .frame(width: width, height: ruler.height, alignment: .topLeading)
         }
@@ -266,63 +275,78 @@ struct Scale: View {
             .font(Ink.body).monospacedDigit().frame(height: rowHeight)
     }
 
-    /// Рисунки рабочего дня — под карточками, бледной акварелью: в перерыве сбоку от подписи — чашка, в пустой
-    /// дорожке рядом с пропущенной встречей — тоже, под концом дня, если есть место, — полоска пейзажа, и
-    /// где придётся — пара клякс. Всё случайное, но у одного дня всегда одно и то же.
-    @ViewBuilder private func decor(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> some View {
-        let seed = UInt64(truncatingIfNeeded: Int((day.start.timeIntervalSince1970 / 86_400).rounded()))
-        // n-е случайное число от 0 до 1 для этого дня.
-        let chance = { (n: Int) -> CGFloat in
-            var x = seed &* 6_364_136_223_846_793_005 &+ UInt64(n) &* 1_442_695_040_888_963_407
-            x ^= x >> 33
-            x = x &* 0xff51_afd7_ed55_8ccd
-            x ^= x >> 33
-            return CGFloat(x % 10_000) / 10_000
-        }
-        let breaks = ["cup1", "cup2", "tea1", "tea2"]
+    /// Рисунки рабочего дня — под карточками и подписями, бледной акварелью: одна чашка в самом просторном
+    /// свободном месте и под концом дня, если есть место, — полоска пейзажа. Всё случайное, но у одного дня всегда
+    /// одно и то же.
+    @ViewBuilder private func decor(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat,
+                                    cup: CGRect?) -> some View {
         let lane = width - gutter
-        ForEach(Array(day.gaps.enumerated()), id: \.offset) { i, gap in
-            let height = ruler.y(gap.end) - ruler.y(gap.start)
-            let size = min(height - 6, 40)
-            if size >= 18 {
-                let left = chance(10 + i) < 0.5
-                Picture(name: breaks[Int(chance(20 + i) * CGFloat(breaks.count))])
-                    .frame(width: size, height: size)
-                    .offset(x: left ? gutter + 10 : width - 10 - size, y: ruler.y(gap.start) + (height - size) / 2)
-            }
-        }
-        ForEach(Array(holes(day.placed).enumerated()), id: \.offset) { i, hole in
-            let skipped = day.placed.contains { p in
-                p.lanes == hole.lanes && p.lane != hole.lane && p.meeting.start < hole.end && p.meeting.end > hole.start
-                    && [.skipped, .ignored].contains(look(p.meeting, now: app.now, state: app.state, ringing: app.reminding, late: app.late))
-            }
-            let laneWidth = (lane - cardGap * CGFloat(hole.lanes - 1)) / CGFloat(hole.lanes)
-            let height = ruler.y(hole.end) - ruler.y(hole.start)
-            let size = min(height - 8, laneWidth - 8, 44)
-            if skipped && size >= 20 {
-                Picture(name: breaks[Int(chance(30 + i) * CGFloat(breaks.count))])
-                    .frame(width: size, height: size)
-                    .offset(x: gutter + CGFloat(hole.lane) * (laneWidth + cardGap) + (laneWidth - size) / 2,
-                            y: ruler.y(hole.start) + (height - size) / 2)
-            }
+        if let cup {
+            let cups = ["cup1", "cup2", "tea1", "tea2"]
+            Picture(name: cups[Int(chance(day.start, 1) * CGFloat(cups.count))])
+                .frame(width: cup.width, height: cup.height)
+                .offset(x: cup.minX, y: cup.minY)
         }
         // Под подписью конца дня — до значков внизу карточки.
         let below = ruler.y(day.end - 15 * 60) + 3 + rowHeight + 10
         let room = available - below - 18
-        if room >= 28 {
+        if room >= 36 {
             let strips = ["horizon1", "horizon2", "sunset1", "sunset2", "hills1", "hills2"]
-            Picture(name: strips[Int(chance(1) * CGFloat(strips.count))])
+            Picture(name: strips[Int(chance(day.start, 2) * CGFloat(strips.count))])
                 .frame(width: lane, height: min(room, lane / 4), alignment: .top)
                 .offset(x: gutter, y: below)
         }
-        let blots = ["blot1", "blot2", "blot3"]
-        ForEach(0..<2 + Int(chance(2) * 2), id: \.self) { i in
-            let size = 22 + chance(40 + i) * 22
-            Picture(name: blots[Int(chance(50 + i) * CGFloat(blots.count))])
+    }
+
+    /// Две-три бледные кляксы где придётся — поверх карточек, как брызги чернил на листе; щелчков не ловят.
+    private func blots(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> some View {
+        let names = ["blot1", "blot2", "blot3"]
+        return ForEach(0..<2 + Int(chance(day.start, 3) * 2), id: \.self) { i in
+            let size = 22 + chance(day.start, 40 + i) * 22
+            Picture(name: names[Int(chance(day.start, 50 + i) * CGFloat(names.count))])
                 .frame(width: size, height: size)
-                .rotationEffect(.degrees(Double(chance(60 + i)) * 360))
-                .offset(x: gutter + chance(70 + i) * (lane - size), y: chance(80 + i) * max(0, ruler.height - size))
+                .rotationEffect(.degrees(Double(chance(day.start, 60 + i)) * 360))
+                .opacity(0.3)
+                .offset(x: gutter + chance(day.start, 70 + i) * (width - gutter - size), y: chance(day.start, 80 + i) * max(0, ruler.height - size))
+                .allowsHitTesting(false)
+                .zIndex(1.5)
         }
+    }
+
+    /// Место для чашки — одно на день, самое просторное: перерыв от часа (чашка слева, надпись уходит вправо) или
+    /// пустая дорожка от 30 минут рядом с пропущенной встречей. Тесно — чашки нет.
+    private func cupSpot(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> (rect: CGRect, gap: Date?)? {
+        let lane = width - gutter
+        var spots: [(rect: CGRect, gap: Date?)] = []
+        for gap in day.gaps where gap.end.timeIntervalSince(gap.start) >= 3600 {
+            let height = ruler.y(gap.end) - ruler.y(gap.start)
+            // Справа остаётся место под надпись «свободно 1 ч 30 мин · 18:30–20:00».
+            let size = min(height - 10, lane - 220, 100)
+            spots.append((CGRect(x: gutter + 12, y: ruler.y(gap.start) + (height - size) / 2, width: size, height: size), gap.start))
+        }
+        for hole in holes(day.placed) where hole.end.timeIntervalSince(hole.start) >= 1800 {
+            let skipped = day.placed.contains { p in
+                p.lanes == hole.lanes && p.lane != hole.lane && p.meeting.start < hole.end && p.meeting.end > hole.start
+                    && [.skipped, .ignored].contains(look(p.meeting, now: app.now, state: app.state, ringing: app.reminding, late: app.late))
+            }
+            guard skipped else { continue }
+            let laneWidth = (lane - cardGap * CGFloat(hole.lanes - 1)) / CGFloat(hole.lanes)
+            let height = ruler.y(hole.end) - ruler.y(hole.start)
+            let size = min(height - 10, laneWidth - 10, 100)
+            spots.append((CGRect(x: gutter + CGFloat(hole.lane) * (laneWidth + cardGap) + (laneWidth - size) / 2,
+                                 y: ruler.y(hole.start) + (height - size) / 2, width: size, height: size), nil))
+        }
+        return spots.filter { $0.rect.width >= 44 }.max { $0.rect.width < $1.rect.width }
+    }
+
+    /// n-е случайное число от 0 до 1 для дня: у одного дня всегда одно и то же.
+    private func chance(_ day: Date, _ n: Int) -> CGFloat {
+        var x = UInt64(truncatingIfNeeded: Int((day.timeIntervalSince1970 / 86_400).rounded())) &* 6_364_136_223_846_793_005
+            &+ UInt64(n) &* 1_442_695_040_888_963_407
+        x ^= x >> 33
+        x = x &* 0xff51_afd7_ed55_8ccd
+        x ^= x >> 33
+        return CGFloat(x % 10_000) / 10_000
     }
 
     /// «свободно 1 ч · 07:00–08:00» по центру промежутка.
