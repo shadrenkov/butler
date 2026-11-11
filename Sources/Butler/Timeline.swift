@@ -286,7 +286,7 @@ struct Scale: View {
         var fadesCorner = false
     }
 
-    /// Рисунки дня по слоям: пейзажи под подписями, вставки над подписями, кляксы над карточками.
+    /// Рисунки дня по слоям: пейзаж под подписями, вставки над подписями, кляксы над карточками.
     struct Artwork {
         var under: [Piece] = []
         var middle: [Piece] = []
@@ -294,8 +294,7 @@ struct Scale: View {
     }
 
     /// Где и что рисовать. Под концом дня — пейзаж во всю ширину карточки, до её нижнего края: подпись конца,
-    /// индикатор и шестерёнка лежат поверх. Перерыв от двух часов — пейзаж во всю строку, надпись поверх. Перерыв
-    /// от часа — вставка у правого края: левая часть шкалы — для дела. Пустая дорожка от 30 минут рядом с
+    /// индикатор и шестерёнка лежат поверх. Перерыв от часа — вставка у правого края: левая часть шкалы — для дела. Пустая дорожка от 30 минут рядом с
     /// пропущенной встречей — вставка посередине. И две-три большие бледные кляксы, каждая в своей полосе по
     /// высоте, по очереди слева и справа. Вид рисунка за день не повторяется.
     private func artwork(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> Artwork {
@@ -317,11 +316,7 @@ struct Scale: View {
         for gap in day.gaps {
             let length = gap.end.timeIntervalSince(gap.start)
             let height = ruler.y(gap.end) - ruler.y(gap.start)
-            if length >= 2 * 3600, let name = choice.pick(landscapes, at: gap.start) {
-                let strip = min(height - 8, lane / 2.5)
-                art.under.append(Piece(name: name, rect: CGRect(x: gutter, y: ruler.y(gap.start) + (height - strip) / 2, width: lane, height: strip),
-                                       fills: true))
-            } else if length >= 3600 {
+            if length >= 3600 {
                 let size = min(height - 10, 100)
                 spots.append((CGRect(x: width - 12 - size, y: ruler.y(gap.start) + (height - size) / 2, width: size, height: size), gap.start))
             }
