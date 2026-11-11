@@ -161,11 +161,24 @@ struct Card: View {
     }
 
     var body: some View {
-        // Узкая карточка — без числа участников: оно отняло бы место у текста.
-        ViewThatFits(in: .horizontal) {
-            face(badge: participants > 0 && rows > 1).frame(minWidth: 110, idealWidth: 110, maxWidth: .infinity)
-            face(badge: false)
+        let badge = participants > 0 && rows > 1
+        ViewThatFits(in: .vertical) {
+            // Под строками есть место — число в углу под ними, при любой ширине.
+            VStack(spacing: 0) {
+                lines(reserve: false)
+                Spacer(minLength: 0)
+                if badge { people.frame(maxWidth: .infinity, alignment: .trailing).padding(.trailing, -1) }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            // Места нет — число в конце нижней строки; узкой карточке оно отняло бы место у текста — его нет.
+            ViewThatFits(in: .horizontal) {
+                face(badge: badge).frame(minWidth: 110, idealWidth: 110, maxWidth: .infinity)
+                face(badge: false)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(height: height, alignment: .top)
         .background(paper)
         .clipShape(RoundedRectangle(cornerRadius: 5))
         .shadow(color: look == .ringing ? glow(stock(meeting)).opacity(0.55) : .clear, radius: 4)
