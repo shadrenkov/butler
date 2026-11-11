@@ -279,19 +279,24 @@ struct Scale: View {
             .font(Ink.body).monospacedDigit().frame(height: rowHeight)
     }
 
-    /// Полоска пейзажа под концом дня — во всю ширину карточки, сразу под подписью конца, до значков внизу.
+    /// Пейзаж под концом дня — во всю ширину карточки, от линии конца дня до нижнего края карточки; подпись конца
+    /// дня, индикатор и шестерёнка лежат поверх него. Пейзаж заполняет высоту, обрезаясь по бокам, — но не больше
+    /// чем вдвое: в совсем короткий день над ним остаётся пустое поле.
     @ViewBuilder private func strip(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> some View {
-        let below = ruler.y(day.end - 15 * 60) + 3 + rowHeight + 2
-        let room = available - below - 18
-        if room >= 36 {
+        let top = ruler.y(day.end - 15 * 60)
+        // Шкала кончается на 12 pt выше края карточки — у её нижнего поля.
+        let room = available + 12 - top
+        if room >= 60 {
             let names = ["horizon1", "horizon2", "sunset1", "sunset2", "hills1", "hills2"]
-            Picture(name: names[Int(chance(day.start, 2) * CGFloat(names.count))])
-                .frame(width: width + 24, height: min(room, (width + 24) / 3), alignment: .top)
-                .offset(x: -12, y: below)
+            let height = min(room, (width + 24) / 2)
+            Picture(name: names[Int(chance(day.start, 2) * CGFloat(names.count))], fills: true)
+                .frame(width: width + 24, height: height)
+                .clipped()
+                .offset(x: -12, y: top + room - height)
         }
     }
 
-    /// Две-три крупные бледные кляксы — поверх карточек, как брызги чернил на листе; щелчков не ловят. Каждая —
+    /// Две-три большие бледные кляксы — поверх карточек, как брызги чернил на листе; щелчков не ловят. Каждая —
     /// в своей полосе по высоте и по очереди то слева, то справа, чтобы не сбивались в кучу.
     private func blots(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> some View {
         let names = ["blot1", "blot2", "blot3"]
@@ -300,7 +305,7 @@ struct Scale: View {
         let half = (width - gutter) / 2
         let right = chance(day.start, 4) < 0.5
         return ForEach(0..<count, id: \.self) { i in
-            let size = 60 + chance(day.start, 40 + i) * 60
+            let size = 100 + chance(day.start, 40 + i) * 80
             Picture(name: names[(Int(chance(day.start, 50) * 3) + i) % names.count])
                 .frame(width: size, height: size)
                 .rotationEffect(.degrees(Double(chance(day.start, 60 + i)) * 360))
@@ -312,7 +317,8 @@ struct Scale: View {
         }
     }
 
-    /// Место для чашки — одно на день, самое просторное: перерыв от часа (чашка у левого края) или пустая
+    /// Место для чашки — одно на день, самое просторное: перерыв от часа (чашка у правого края — левая часть шкалы
+    /// для дела) или пустая
     /// дорожка от 30 минут рядом с пропущенной встречей. Тесно — чашки нет.
     private func cupSpot(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> CGRect? {
         let lane = width - gutter
@@ -320,7 +326,7 @@ struct Scale: View {
         for gap in day.gaps where gap.end.timeIntervalSince(gap.start) >= 3600 {
             let height = ruler.y(gap.end) - ruler.y(gap.start)
             let size = min(height - 10, 100)
-            spots.append(CGRect(x: gutter + 12, y: ruler.y(gap.start) + (height - size) / 2, width: size, height: size))
+            spots.append(CGRect(x: width - 12 - size, y: ruler.y(gap.start) + (height - size) / 2, width: size, height: size))
         }
         for hole in holes(day.placed) where hole.end.timeIntervalSince(hole.start) >= 1800 {
             let skipped = day.placed.contains { p in

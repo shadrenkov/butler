@@ -650,10 +650,12 @@ struct Postcard: View {
 /// Рисунок из `Pictures/`: фон прозрачный, а сама краска чуть просвечивает — сквозь неё видно зерно листа.
 struct Picture: View {
     let name: String
+    /// Заполнить рамку целиком, обрезав лишнее, а не вписаться в неё.
+    var fills = false
 
     var body: some View {
         if let image = NSImage(named: name) {
-            Image(nsImage: image).resizable().scaledToFit().opacity(0.85)
+            Image(nsImage: image).resizable().aspectRatio(contentMode: fills ? .fill : .fit).opacity(0.85)
         }
     }
 }

@@ -1,12 +1,14 @@
-// Открытка свободного дня из сгенерированной картинки на белом: `swift Support/postcard.swift вход.png выход.png`.
+// Картинка из сгенерированной на белом: `swift Support/postcard.swift вход.png выход.png [ширина]`.
 // Белый фон становится прозрачным — чем светлее точка, тем прозрачнее, поэтому мягкие акварельные края остаются
-// мягкими, — пустые поля обрезаются, ширина — не больше 480 px (240 pt на экране Retina); мелкое не растягивается.
+// мягкими, — пустые поля обрезаются, ширина — не больше 480 px (240 pt на экране Retina) или заданной; мелкое
+// не растягивается.
 
 import AppKit
 
 let arguments = CommandLine.arguments
-guard arguments.count == 3, let source = NSImage(contentsOfFile: arguments[1])?.cgImage(forProposedRect: nil, context: nil, hints: nil)
-else { fatalError("swift Support/postcard.swift вход.png выход.png") }
+guard [3, 4].contains(arguments.count), let source = NSImage(contentsOfFile: arguments[1])?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+else { fatalError("swift Support/postcard.swift вход.png выход.png [ширина]") }
+let limit = arguments.count == 4 ? Int(arguments[3])! : 480
 
 let (width, height) = (source.width, source.height)
 var pixels = [UInt8](repeating: 0, count: width * height * 4)
@@ -34,7 +36,7 @@ let margin = 8
 let crop = CGRect(x: max(0, left - margin), y: max(0, top - margin),
                   width: min(width, right + margin) - max(0, left - margin), height: min(height, bottom + margin) - max(0, top - margin))
 let cut = context.makeImage()!.cropping(to: crop)!
-let outWidth = min(480, cut.width), outHeight = Int((Double(cut.height) * Double(outWidth) / Double(cut.width)).rounded())
+let outWidth = min(limit, cut.width), outHeight = Int((Double(cut.height) * Double(outWidth) / Double(cut.width)).rounded())
 let out = CGContext(data: nil, width: outWidth, height: outHeight, bitsPerComponent: 8, bytesPerRow: 0, space: space, bitmapInfo: flags)!
 out.interpolationQuality = .high
 out.draw(cut, in: CGRect(x: 0, y: 0, width: outWidth, height: outHeight))
