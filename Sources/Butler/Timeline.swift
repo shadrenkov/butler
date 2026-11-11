@@ -226,8 +226,9 @@ struct Scale: View {
                 edge(first).offset(x: gutter, y: ruler.y(first) - rowHeight - 3)
                 edge(last).offset(x: gutter, y: ruler.y(last) + 3)
                 ForEach(day.gaps, id: \.start) { gap in
-                    free(gap)
-                        .frame(width: width - gutter, height: ruler.y(gap.end) - ruler.y(gap.start))
+                    let height = ruler.y(gap.end) - ruler.y(gap.start)
+                    free(gap, lines: labelLines(height))
+                        .frame(width: width - gutter, height: height)
                         .offset(x: gutter, y: ruler.y(gap.start))
                 }
                 // Вставки — поверх подписи перерыва, если задевают её: акварель сквозь печать.
@@ -319,10 +320,11 @@ struct Scale: View {
         for gap in day.gaps where gap.end.timeIntervalSince(gap.start) >= 3600 {
             let height = ruler.y(gap.end) - ruler.y(gap.start)
             let middle = ruler.y(gap.start) + height / 2
-            let under = height / 2 - rowHeight / 2 - 10
+            let label = CGFloat(labelLines(height)) * rowHeight
+            let under = height / 2 - label / 2 - 10
             if under >= 80 {
                 let size = min(under, 100)
-                spots.append((CGRect(x: gutter + (lane - size) / 2, y: middle + rowHeight / 2 + 4, width: size, height: size), gap.start))
+                spots.append((CGRect(x: gutter + (lane - size) / 2, y: middle + label / 2 + 4, width: size, height: size), gap.start))
             } else {
                 let size = min(height - 10, 100)
                 spots.append((CGRect(x: side % 2 == 0 ? width - 2 - size : gutter + 2, y: middle - size / 2, width: size, height: size), gap.start))
@@ -380,10 +382,25 @@ struct Scale: View {
         }
     }
 
-    /// «свободно 1 ч · 07:00–08:00» по центру промежутка.
-    private func free(_ gap: Gap) -> some View {
-        (Text("свободно \(durationText(gap.end.timeIntervalSince(gap.start)))").foregroundStyle(Ink.secondary)
-            + homeLabel(gap.start, to: gap.end, config: app.config))
+    /// Сколько строк у надписи промежутка: в высоком — две, если есть время второго пояса.
+    private func labelLines(_ height: CGFloat) -> Int {
+        app.config.showHomeTime && height >= 44 ? 2 : 1
+    }
+
+    /// «свободно 1 ч · 07:00–08:00» по центру промежутка; в высоком промежутке — в две строки, время второго пояса
+    /// второй строкой: по бокам остаётся больше места под рисунки.
+    private func free(_ gap: Gap, lines: Int) -> some View {
+        let duration = Text("свободно \(durationText(gap.end.timeIntervalSince(gap.start)))").foregroundStyle(Ink.secondary)
+        return Group {
+            if lines == 2 {
+                VStack(spacing: 0) {
+                    duration
+                    Text("\(homeTime(gap.start, config: app.config))–\(homeTime(gap.end, config: app.config))").foregroundStyle(Ink.home)
+                }
+            } else {
+                duration + homeLabel(gap.start, to: gap.end, config: app.config)
+            }
+        }
             .font(Ink.body).monospacedDigit().lineLimit(1)
             // Подложка цвета листа закрывает пунктир под надписью; зерно и виньетка ложатся поверх неё, как на лист.
             .padding(.horizontal, 4)

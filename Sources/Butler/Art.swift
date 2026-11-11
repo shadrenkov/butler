@@ -37,7 +37,7 @@ let vignettes: [Art] = art("drink", .morning, ["cup"])
     + art("sand", nil, ["crab", "starfish"])
     + art("animal", nil, ["capybara"])
     + art("bird", nil, ["seagull", "heron", "parakeets", "hornero"])
-    + art("sport", nil, ["surfboard", "sup", "wetsuit", "kite", "bicycle", "skateboard"])
+    + art("sport", nil, ["surfboard", "sup", "kite", "bicycle", "skateboard"])
     + art("beach", nil, ["flipflops", "hat"])
     + art("luck", nil, ["gloves", "money"])
 
