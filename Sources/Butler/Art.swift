@@ -16,16 +16,16 @@ private func art(_ kind: String, _ hour: Hour? = nil, _ names: [String]) -> [Art
     names.map { Art(name: $0, kind: kind, hour: hour) }
 }
 
-let landscapes: [Art] = art("sea", nil, ["horizon", "kites", "whales", "surf", "regatta"])
-    + art("sea", .evening, ["sunset1", "sunset2", "lighthouse"])
+let landscapes: [Art] = art("sea", nil, ["horizon", "kites", "whales", "surf", "regatta", "sandbar", "cove"])
+    + art("sea", .evening, ["sunset1", "sunset2", "lighthouse", "dusk"])
     + art("sea", .morning, ["fog"])
-    + art("shore", nil, ["sealions1", "sealions2", "cliffs", "dunes", "quad"])
+    + art("shore", nil, ["sealions1", "sealions2", "cliffs", "dunes", "quad", "boulders", "tidepools", "headland", "boardwalk", "pier"])
     + art("shore", .morning, ["harbor"])
     + art("shore", .evening, ["stilts"])
-    + art("town", nil, ["street", "ride"])
+    + art("town", nil, ["street", "ride", "thatched", "cottages"])
     + art("town", .morning, ["cafe"])
-    + art("town", .evening, ["promenade1", "promenade2"])
-    + art("land", nil, ["hills", "pines1", "pines2", "island"])
+    + art("town", .evening, ["promenade1", "promenade2", "quay"])
+    + art("land", nil, ["hills", "pines1", "pines2", "island", "mountains", "tent", "lake", "woods", "grove", "creek", "trail", "marsh", "meadow"])
     + art("land", .morning, ["forest"])
 
 let vignettes: [Art] = art("drink", .morning, ["cup"])
