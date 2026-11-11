@@ -43,35 +43,57 @@ let vignettes: [Art] = art("drink", .morning, ["cup"])
 
 let blots: [Art] = art("blot", nil, ["blot1", "blot2"]) + art("splash", nil, ["splash1", "splash2"]) + art("scuff", nil, ["scuff1", "scuff2"])
 
-/// Выбор рисунков на день: случайно, но случайность задаётся только датой — день выглядит одинаково и после
-/// перезапуска, пока не поменялись алгоритм или набор рисунков. Вид за день не повторяется.
+/// Выбор рисунков на день. Каждый набор перемешан раз и навсегда, а дни идут по нему подряд: соседние дни не
+/// совпадают, рисунок возвращается, лишь когда набор пройден целиком. Всё задаётся датой — день выглядит одинаково
+/// и после перезапуска, пока не поменялись алгоритм или набор рисунков. Вид за день не повторяется.
 struct Choice {
-    private let seed: UInt64
+    private let day: Int
     private var count: UInt64 = 0
     private var kinds: Set<String> = []
+    /// Сколько рисунков из набора сегодня уже взято — по первому имени набора.
+    private var taken: [String: Int] = [:]
 
     init(day: Date) {
-        seed = UInt64(truncatingIfNeeded: Int((day.timeIntervalSince1970 / 86_400).rounded()))
+        self.day = Int((day.timeIntervalSince1970 / 86_400).rounded())
     }
 
-    /// Следующее случайное число от 0 до 1.
+    /// Следующее случайное число от 0 до 1 — для мест и поворотов.
     mutating func next() -> CGFloat {
         count += 1
-        var x = seed &* 6_364_136_223_846_793_005 &+ count &* 1_442_695_040_888_963_407
-        x ^= x >> 33
-        x = x &* 0xff51_afd7_ed55_8ccd
-        x ^= x >> 33
-        return CGFloat(x % 10_000) / 10_000
+        return CGFloat(mix(UInt64(truncatingIfNeeded: day) &* 6_364_136_223_846_793_005 &+ count) % 10_000) / 10_000
     }
 
-    /// Рисунок вида, которого сегодня ещё не было, к месту в это время; середина дня принимает любой. Нет — `nil`.
-    mutating func pick(_ arts: [Art], at time: Date) -> String? {
+    /// Следующий по очереди рисунок набора, к месту в это время, вида, которого сегодня ещё не было; середина дня
+    /// принимает любой. `perDay` — сколько рисунков набора день берёт обычно: на столько он и сдвигается от
+    /// вчерашнего. Подходящего нет — `nil`.
+    mutating func pick(_ arts: [Art], perDay: Int, at time: Date) -> String? {
+        guard let first = arts.first?.name else { return nil }
         let hour = Calendar.current.component(.hour, from: time)
         let now: Hour? = hour < 12 ? .morning : hour >= 17 ? .evening : nil
-        let fit = arts.filter { !kinds.contains($0.kind) && ($0.hour == nil || now == nil || $0.hour == now) }
-        guard !fit.isEmpty else { return nil }
-        let art = fit[min(fit.count - 1, Int(next() * CGFloat(fit.count)))]
-        kinds.insert(art.kind)
-        return art.name
+        // Постоянный порядок — перемешивание с одним и тем же зерном; из него — подходящие по времени, чтобы
+        // пропуск неподходящего не сдвигал день на завтрашний рисунок.
+        var order = arts
+        for i in stride(from: order.count - 1, to: 0, by: -1) {
+            order.swapAt(i, Int(mix(UInt64(i) &+ 0x9e37_79b9_7f4a_7c15) % UInt64(i + 1)))
+        }
+        order = order.filter { $0.hour == nil || now == nil || $0.hour == now }
+        let start = day * perDay + taken[first, default: 0]
+        for j in 0..<order.count {
+            let art = order[((start + j) % order.count + order.count) % order.count]
+            guard !kinds.contains(art.kind) else { continue }
+            kinds.insert(art.kind)
+            taken[first, default: 0] += j + 1
+            return art.name
+        }
+        return nil
     }
+}
+
+/// Перемешивание битов: из соседних чисел — непохожие.
+private func mix(_ value: UInt64) -> UInt64 {
+    var x = value &* 0xbf58_476d_1ce4_e5b9
+    x ^= x >> 31
+    x = x &* 0x94d0_49bb_1331_11eb
+    x ^= x >> 29
+    return x
 }

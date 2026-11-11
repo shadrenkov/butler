@@ -294,7 +294,7 @@ struct Scale: View {
     }
 
     /// Где и что рисовать. Под концом дня — пейзаж во всю ширину карточки, до её нижнего края: подпись конца,
-    /// индикатор и шестерёнка лежат поверх. Перерыв от часа — вставка у правого края: левая часть шкалы — для дела. Пустая дорожка от 30 минут рядом с
+    /// индикатор и шестерёнка лежат поверх. Перерыв от часа — вставка у края, по очереди справа и слева, а в большом — под надписью. Пустая дорожка от 30 минут рядом с
     /// пропущенной встречей — вставка посередине. И две-три большие бледные кляксы, каждая в своей полосе по
     /// высоте, по очереди слева и справа. Вид рисунка за день не повторяется.
     private func artwork(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> Artwork {
@@ -305,7 +305,7 @@ struct Scale: View {
         let top = ruler.y(day.end - 15 * 60)
         // Шкала кончается на 12 pt выше края карточки — у её нижнего поля.
         let room = available + 12 - top
-        if room >= 60, let name = choice.pick(landscapes, at: day.end) {
+        if room >= 60, let name = choice.pick(landscapes, perDay: 1, at: day.end) {
             // Заполняет высоту, обрезаясь по бокам, — но не больше чем вдвое: в совсем короткий день сверху поле.
             let height = min(room, (width + 24) / 2)
             art.under.append(Piece(name: name, rect: CGRect(x: -12, y: top + room - height, width: width + 24, height: height), fills: true,
@@ -313,12 +313,20 @@ struct Scale: View {
         }
 
         var spots: [(rect: CGRect, time: Date)] = []
-        for gap in day.gaps {
-            let length = gap.end.timeIntervalSince(gap.start)
+        // Большой перерыв — вставка под надписью, посередине. Иначе у самого края, подальше от надписи, по очереди:
+        // в одном перерыве справа, в следующем слева.
+        var side = 0
+        for gap in day.gaps where gap.end.timeIntervalSince(gap.start) >= 3600 {
             let height = ruler.y(gap.end) - ruler.y(gap.start)
-            if length >= 3600 {
+            let middle = ruler.y(gap.start) + height / 2
+            let under = height / 2 - rowHeight / 2 - 10
+            if under >= 80 {
+                let size = min(under, 100)
+                spots.append((CGRect(x: gutter + (lane - size) / 2, y: middle + rowHeight / 2 + 4, width: size, height: size), gap.start))
+            } else {
                 let size = min(height - 10, 100)
-                spots.append((CGRect(x: width - 12 - size, y: ruler.y(gap.start) + (height - size) / 2, width: size, height: size), gap.start))
+                spots.append((CGRect(x: side % 2 == 0 ? width - 2 - size : gutter + 2, y: middle - size / 2, width: size, height: size), gap.start))
+                side += 1
             }
         }
         for hole in holes(day.placed) where hole.end.timeIntervalSince(hole.start) >= 1800 {
@@ -335,7 +343,7 @@ struct Scale: View {
         }
         // Самые просторные места — первыми: им достаются рисунки, если видов на всех не хватит.
         for spot in spots.filter({ $0.rect.width >= 44 }).sorted(by: { $0.rect.width > $1.rect.width }) {
-            if let name = choice.pick(vignettes, at: spot.time) { art.middle.append(Piece(name: name, rect: spot.rect)) }
+            if let name = choice.pick(vignettes, perDay: 3, at: spot.time) { art.middle.append(Piece(name: name, rect: spot.rect)) }
         }
 
         let count = 2 + Int(choice.next() * 2)
@@ -343,7 +351,7 @@ struct Scale: View {
         let half = lane / 2
         let right = choice.next() < 0.5
         for i in 0..<count {
-            guard let name = choice.pick(blots, at: day.start + 13 * 3600) else { break }
+            guard let name = choice.pick(blots, perDay: 3, at: day.start + 13 * 3600) else { break }
             let size = 100 + choice.next() * 80
             let x = gutter + ((i % 2 == 0) == right ? half : 0) + choice.next() * max(0, half - size)
             let y = band * CGFloat(i) + choice.next() * max(0, band - size)
