@@ -277,11 +277,10 @@ struct DayView: View {
                     Scale(app: app, meetings: meetings, isToday: app.isShowingToday, available: geo.size.height)
                 }
             } else if meetings != nil {
-                VStack(spacing: 14) {
-                    Postcard(day: app.shownDay)
-                    Text("Свободный день").font(Ink.title).foregroundStyle(Ink.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Надпись — посередине карточки, открытка — над ней.
+                Text("Свободный день").font(Ink.title).foregroundStyle(Ink.secondary)
+                    .overlay(alignment: .top) { Postcard(day: app.shownDay).alignmentGuide(.top) { $0[.bottom] + 14 } }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if isEmpty {
                 // Подсказка — внизу, у шестерёнки: см. `Welcome`.
                 Spacer()
@@ -639,10 +638,14 @@ struct Postcard: View {
     let day: String
 
     var body: some View {
-        let names = ["beach"]
-        let number = bounds(day).map { Int($0.start.timeIntervalSince1970 / 86_400) } ?? 0
+        let names = ["beach", "bed", "yacht", "coffee"]
+        // Свободные дни — в основном выходные: суббота и воскресенье идут по очереди сквозь недели, и картинка
+        // повторяется лишь через выходные. Будние свободные дни — подряд по дням.
+        let days = bounds(day).map { Int(($0.start.timeIntervalSince1970 / 86_400).rounded()) } ?? 0
+        let weekday = (days + 3) % 7  // 1 января 1970 — четверг; 0 — понедельник
+        let number = weekday >= 5 ? (days + 3) / 7 * 2 + weekday - 5 : days
         if let image = NSImage(named: names[abs(number) % names.count]) {
-            Image(nsImage: image).resizable().scaledToFit().frame(width: 240).opacity(0.85)
+            Image(nsImage: image).resizable().scaledToFit().frame(width: 240, height: 170, alignment: .bottom).opacity(0.85)
         }
     }
 }

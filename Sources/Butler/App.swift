@@ -847,7 +847,8 @@ final class App: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Сегодня всё закончилось — окно открывается на ближайшем дне окна со встречами, а нет такого — на завтра.
+    /// Сегодняшние встречи кончились — окно открывается на ближайшем дне окна со встречами, а нет такого — на завтра.
+    /// Свободный день — выходной или будний без встреч — открывается сам: на нём открытка.
     private func showNextDayWithMeetings() {
         let rest = window.dropFirst()
         show(rest.first { day in visible(assembled(day)).contains { !$0.isAllDay } } ?? rest.first ?? today())
@@ -856,7 +857,8 @@ final class App: NSObject, NSApplicationDelegate {
     @objc private func togglePanel() {
         if !panel.isVisible, let button = statusItem.button {
             show(today())
-            if reminding.isEmpty && !meetings.contains(where: { !$0.isAllDay && $0.end > currentTime() }) { showNextDayWithMeetings() }
+            let timed = meetings.filter { !$0.isAllDay }
+            if reminding.isEmpty && !timed.isEmpty && timed.allSatisfy({ $0.end <= currentTime() }) { showNextDayWithMeetings() }
             panel.showFromMenu(button)
         } else if reminding.isEmpty {
             panel.orderOut(nil)
