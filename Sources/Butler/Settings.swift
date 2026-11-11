@@ -286,13 +286,11 @@ struct SettingsView: View {
                 sounds
                 reminder
                 link
-                section("Часовой пояс") {
+                section("Вид") {
                     // Друг под другом: рядом в одну строку галочка и длинное имя пояса не влезают.
                     Toggle("Второй часовой пояс", isOn: Binding(get: { app.config.showHomeTime },
                                                                 set: { app.changeConfig("showHomeTime", $0) }))
                     zone.disabled(!app.config.showHomeTime).padding(.leading, 18)
-                }
-                section("Оформление") {
                     Toggle("Добавить картинки Work&Life", isOn: Binding(get: { app.config.pictures },
                                                                        set: { app.changeConfig("pictures", $0) }))
                 }

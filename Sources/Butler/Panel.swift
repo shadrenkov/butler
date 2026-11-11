@@ -685,13 +685,16 @@ struct Week: View {
         let timed = app.meetings.filter { !$0.isAllDay }
         let todayOver = !timed.isEmpty && timed.allSatisfy { $0.end <= app.now }
         let (width, height): (CGFloat, CGFloat) = (7, 9)
-        HStack(spacing: 4) {
+        // Промежуток между днями — из полей подсветки `Hover`: по 2 pt с каждой стороны.
+        HStack(spacing: 0) {
             ForEach(week(app.shownDay), id: \.self) { d in
                 let tone = nonWorking(d, workdays: app.state.workdays) ? ink(0xE07A64) : Ink.secondary
                 let past = d < current || d == current && todayOver
                 let shown = d == app.shownDay
                 let vip = min(app.knownMeetings(d)?.filter { important($0, app.state) }.count ?? 0, 3)
                 let fill = (tone == Ink.secondary ? 0.17 : 0.22) * (shown ? 3.2 : past ? 0.55 : 1.3)
+                // День — кнопка: щелчок открывает его, под мышью подсветка, как у стрелок рядом.
+                Button { app.show(d) } label: {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(tone.opacity(fill))
                     .frame(width: width, height: height)
@@ -727,6 +730,9 @@ struct Week: View {
                                 .padding(.horizontal, -1.8).padding(.top, -1.6).padding(.bottom, -4.5)
                         }
                     }
+                }
+                .buttonStyle(Hover(padding: 2))
+                .help(dayTitle(d) ?? "")
             }
         }
         .blendMode(.multiply)
