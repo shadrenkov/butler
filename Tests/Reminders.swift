@@ -142,10 +142,14 @@ private func ids(_ r: Reminders, _ ms: [Meeting], at now: Date, state s: State =
     #expect(remindAt(meeting("n"), config: config(offset: 20)) == t0 - 20)
 }
 
-@Test func freeInOutlookIsSkipped() {
+@Test func freeInOutlookIsSkippedUntilAskedToRemind() {
     let m = meeting("free", free: true)
     #expect(Reminders().reminding([m], now: t0, state: State(), config: Config()).isEmpty)
     #expect(look(m, now: t0 - 3600, state: State(), ringing: [], late: []) == .skipped)
+    var s = State()
+    s.decisions["free"] = State.Decision(kind: .remind, day: "2027-01-15")
+    #expect(Reminders().reminding([m], now: t0, state: s, config: Config()).map(\.eventId) == ["free"])
+    #expect(look(m, now: t0 - 3600, state: s, ringing: [], late: []) == .normal)
 }
 
 @Test func okStopsRingingAndLateness() {

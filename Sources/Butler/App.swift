@@ -945,8 +945,9 @@ final class App: NSObject, NSApplicationDelegate {
         tick()
     }
 
+    /// «Свободная» в Outlook пропущена сама — вернуть её значит попросить напоминать.
     func unskip(_ m: Meeting) {
-        state.decisions[m.eventId] = nil
+        if m.isFree == true { decide(m, .remind) } else { state.decisions[m.eventId] = nil }
         state.save()
         tick()
     }

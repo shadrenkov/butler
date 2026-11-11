@@ -261,8 +261,7 @@ struct Card: View {
     private var icons: some View {
         HStack(spacing: 2) {
             if hoverCard {
-                // «Свободную» в Outlook не вернуть: её пропуск записан там, а не в Butler.
-                if look != .past && look != .ignored && meeting.isFree != true {
+                if look != .past && look != .ignored {
                     let skipped = look == .skipped
                     // Колокольчик: звенит — можно пропустить, зачёркнут — пропущена, можно вернуть.
                     IconButton(symbol: skipped ? "bell.slash" : "bell",
@@ -659,8 +658,7 @@ struct Info: View {
                 if app.state.ignored[meeting.ignoreKey] != nil {
                     Action(symbol: "bell.slash", count: meeting.isRecurring ? 2 : 1, title: "Вернуть" + all) { app.unignore(meeting.ignoreKey) }
                 } else {
-                    // «Свободную» в Outlook не вернуть: её пропуск записан там, а не в Butler.
-                    if look == .skipped && meeting.isFree != true {
+                    if look == .skipped {
                         Action(symbol: "bell.slash", title: "Вернуть") { app.unskip(meeting) }
                     } else if look != .past && look != .skipped {
                         Action(symbol: "bell", title: "Пропустить") { app.skip(meeting) }

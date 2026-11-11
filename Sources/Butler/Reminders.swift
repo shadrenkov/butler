@@ -17,9 +17,10 @@ func phase(_ m: Meeting, now: Date) -> Phase {
     return now >= m.start - 600 ? .soon : .ahead
 }
 
-/// По встрече всё решено: пользователь подключился, пропустил её, игнорирует серию или в Outlook она «свободна».
+/// По встрече всё решено: пользователь подключился, пропустил её, игнорирует серию или в Outlook она «свободна»
+/// и напоминать о ней не просили.
 func isSettled(_ m: Meeting, _ state: State) -> Bool {
-    state.decisions[m.eventId] != nil || state.ignored[m.ignoreKey] != nil || m.isFree == true
+    state.ignored[m.ignoreKey] != nil || state.decisions[m.eventId].map { $0.kind != .remind } ?? (m.isFree == true)
 }
 
 /// Состояние напоминаний в памяти: до какого момента молчать, сколько раз напоминание повторилось само и

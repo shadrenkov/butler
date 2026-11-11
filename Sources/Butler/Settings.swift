@@ -209,7 +209,8 @@ struct State: Codable {
     var workdays: [String: Workdays] = [:]
 
     struct Decision: Codable {
-        enum Kind: String, Codable { case joined, skipped }
+        /// `remind` — напоминать о встрече, «свободной» в Outlook: по умолчанию она пропущена.
+        enum Kind: String, Codable { case joined, skipped, remind }
         let kind: Kind
         /// День встречи — по нему решения прошлых дней удаляются.
         let day: String

@@ -17,7 +17,7 @@ struct Meeting: Codable, Identifiable, Equatable {
     let attendees: [String]?
     let description: String?
     let isOrganizer: Bool?
-    /// В Outlook помечена «Показывать как: Свободен» — считается пропущенной.
+    /// В Outlook помечена «Показывать как: Свободен» — по умолчанию пропущена, колокольчиком возвращается.
     let isFree: Bool?
     /// Откуда показанная копия: «Exchange · ivanov@example.com» или «Google · Работа» — только в подробностях.
     var source: String? = nil
