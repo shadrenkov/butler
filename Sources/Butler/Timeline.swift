@@ -48,6 +48,45 @@ func layout(_ meetings: [Meeting]) -> (start: Date, end: Date, placed: [Placed],
     return (first.start - 15 * 60, groupEnd + 15 * 60, placed, gaps)
 }
 
+/// Пустое место в дорожке: в группе пересекающихся встреч эта дорожка свободна, пока соседние заняты.
+struct Hole {
+    let start: Date
+    let end: Date
+    let lane: Int
+    let lanes: Int
+}
+
+func holes(_ placed: [Placed]) -> [Hole] {
+    var result: [Hole] = []
+    var group: [Placed] = []
+    var groupEnd = Date.distantPast
+
+    func close() {
+        guard let lanes = group.first?.lanes, lanes > 1 else { return }
+        let start = group.map(\.meeting.start).min()!
+        for lane in 0..<lanes {
+            var free = start
+            for p in group.filter({ $0.lane == lane }).sorted(by: { $0.meeting.start < $1.meeting.start }) {
+                if p.meeting.start > free { result.append(Hole(start: free, end: p.meeting.start, lane: lane, lanes: lanes)) }
+                free = max(free, p.meeting.end)
+            }
+            if free < groupEnd { result.append(Hole(start: free, end: groupEnd, lane: lane, lanes: lanes)) }
+        }
+    }
+
+    // Группы — как в `layout`: встреча, начавшаяся не раньше конца предыдущих, открывает новую.
+    for p in placed.sorted(by: { ($0.meeting.start, $0.meeting.end) < ($1.meeting.start, $1.meeting.end) }) {
+        if !group.isEmpty && p.meeting.start >= groupEnd {
+            close()
+            group = []
+        }
+        group.append(p)
+        groupEnd = max(groupEnd, p.meeting.end)
+    }
+    close()
+    return result
+}
+
 /// Строка текста в окне, зазор между карточками рядом и отступ карточки от линии часа сверху и снизу.
 let rowHeight: CGFloat = 13
 let cardGap: CGFloat = 4
@@ -177,6 +216,8 @@ struct Scale: View {
                             .offset(y: ruler.y(hour) + 2)
                     }
                 }
+                // Рисунки — под подписями и карточками.
+                decor(day, ruler: ruler, width: width)
                 edge(first).offset(x: gutter, y: ruler.y(first) - rowHeight - 3)
                 edge(last).offset(x: gutter, y: ruler.y(last) + 3)
                 ForEach(day.gaps, id: \.start) { gap in
@@ -223,6 +264,65 @@ struct Scale: View {
     private func edge(_ date: Date) -> some View {
         (Text(hhmm(date)).foregroundStyle(Ink.secondary) + homeLabel(date, config: app.config))
             .font(Ink.body).monospacedDigit().frame(height: rowHeight)
+    }
+
+    /// Рисунки рабочего дня — под карточками, бледной акварелью: в перерыве сбоку от подписи — чашка, в пустой
+    /// дорожке рядом с пропущенной встречей — тоже, под концом дня, если есть место, — полоска пейзажа, и
+    /// где придётся — пара клякс. Всё случайное, но у одного дня всегда одно и то же.
+    @ViewBuilder private func decor(_ day: (start: Date, end: Date, placed: [Placed], gaps: [Gap]), ruler: Ruler, width: CGFloat) -> some View {
+        let seed = UInt64(truncatingIfNeeded: Int((day.start.timeIntervalSince1970 / 86_400).rounded()))
+        // n-е случайное число от 0 до 1 для этого дня.
+        let chance = { (n: Int) -> CGFloat in
+            var x = seed &* 6_364_136_223_846_793_005 &+ UInt64(n) &* 1_442_695_040_888_963_407
+            x ^= x >> 33
+            x = x &* 0xff51_afd7_ed55_8ccd
+            x ^= x >> 33
+            return CGFloat(x % 10_000) / 10_000
+        }
+        let breaks = ["cup1", "cup2", "tea1", "tea2"]
+        let lane = width - gutter
+        ForEach(Array(day.gaps.enumerated()), id: \.offset) { i, gap in
+            let height = ruler.y(gap.end) - ruler.y(gap.start)
+            let size = min(height - 6, 40)
+            if size >= 18 {
+                let left = chance(10 + i) < 0.5
+                Picture(name: breaks[Int(chance(20 + i) * CGFloat(breaks.count))])
+                    .frame(width: size, height: size)
+                    .offset(x: left ? gutter + 10 : width - 10 - size, y: ruler.y(gap.start) + (height - size) / 2)
+            }
+        }
+        ForEach(Array(holes(day.placed).enumerated()), id: \.offset) { i, hole in
+            let skipped = day.placed.contains { p in
+                p.lanes == hole.lanes && p.lane != hole.lane && p.meeting.start < hole.end && p.meeting.end > hole.start
+                    && [.skipped, .ignored].contains(look(p.meeting, now: app.now, state: app.state, ringing: app.reminding, late: app.late))
+            }
+            let laneWidth = (lane - cardGap * CGFloat(hole.lanes - 1)) / CGFloat(hole.lanes)
+            let height = ruler.y(hole.end) - ruler.y(hole.start)
+            let size = min(height - 8, laneWidth - 8, 44)
+            if skipped && size >= 20 {
+                Picture(name: breaks[Int(chance(30 + i) * CGFloat(breaks.count))])
+                    .frame(width: size, height: size)
+                    .offset(x: gutter + CGFloat(hole.lane) * (laneWidth + cardGap) + (laneWidth - size) / 2,
+                            y: ruler.y(hole.start) + (height - size) / 2)
+            }
+        }
+        // Под подписью конца дня — до значков внизу карточки.
+        let below = ruler.y(day.end - 15 * 60) + 3 + rowHeight + 10
+        let room = available - below - 18
+        if room >= 28 {
+            let strips = ["horizon1", "horizon2", "sunset1", "sunset2", "hills1", "hills2"]
+            Picture(name: strips[Int(chance(1) * CGFloat(strips.count))])
+                .frame(width: lane, height: min(room, lane / 4), alignment: .top)
+                .offset(x: gutter, y: below)
+        }
+        let blots = ["blot1", "blot2", "blot3"]
+        ForEach(0..<2 + Int(chance(2) * 2), id: \.self) { i in
+            let size = 22 + chance(40 + i) * 22
+            Picture(name: blots[Int(chance(50 + i) * CGFloat(blots.count))])
+                .frame(width: size, height: size)
+                .rotationEffect(.degrees(Double(chance(60 + i)) * 360))
+                .offset(x: gutter + chance(70 + i) * (lane - size), y: chance(80 + i) * max(0, ruler.height - size))
+        }
     }
 
     /// «свободно 1 ч · 07:00–08:00» по центру промежутка.

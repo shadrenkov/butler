@@ -1,6 +1,6 @@
 // Открытка свободного дня из сгенерированной картинки на белом: `swift Support/postcard.swift вход.png выход.png`.
 // Белый фон становится прозрачным — чем светлее точка, тем прозрачнее, поэтому мягкие акварельные края остаются
-// мягкими, — пустые поля обрезаются, ширина — 480 px (240 pt на экране Retina).
+// мягкими, — пустые поля обрезаются, ширина — не больше 480 px (240 pt на экране Retina); мелкое не растягивается.
 
 import AppKit
 
@@ -34,7 +34,7 @@ let margin = 8
 let crop = CGRect(x: max(0, left - margin), y: max(0, top - margin),
                   width: min(width, right + margin) - max(0, left - margin), height: min(height, bottom + margin) - max(0, top - margin))
 let cut = context.makeImage()!.cropping(to: crop)!
-let outWidth = 480, outHeight = Int((Double(cut.height) * 480 / Double(cut.width)).rounded())
+let outWidth = min(480, cut.width), outHeight = Int((Double(cut.height) * Double(outWidth) / Double(cut.width)).rounded())
 let out = CGContext(data: nil, width: outWidth, height: outHeight, bitsPerComponent: 8, bytesPerRow: 0, space: space, bitmapInfo: flags)!
 out.interpolationQuality = .high
 out.draw(cut, in: CGRect(x: 0, y: 0, width: outWidth, height: outHeight))

@@ -632,8 +632,7 @@ private struct Loading: View {
     }
 }
 
-/// Открытка свободного дня: картинки из `Pictures/` по очереди, у одного дня — всегда одна и та же. Фон у них
-/// прозрачный, а сама краска чуть просвечивает — сквозь неё видно зерно листа.
+/// Открытка свободного дня: картинки по очереди, у одного дня — всегда одна и та же.
 struct Postcard: View {
     let day: String
 
@@ -644,8 +643,17 @@ struct Postcard: View {
         let days = bounds(day).map { Int(($0.start.timeIntervalSince1970 / 86_400).rounded()) } ?? 0
         let weekday = (days + 3) % 7  // 1 января 1970 — четверг; 0 — понедельник
         let number = weekday >= 5 ? (days + 3) / 7 * 2 + weekday - 5 : days
-        if let image = NSImage(named: names[abs(number) % names.count]) {
-            Image(nsImage: image).resizable().scaledToFit().frame(width: 240, height: 170, alignment: .bottom).opacity(0.85)
+        Picture(name: names[abs(number) % names.count]).frame(width: 240, height: 170, alignment: .bottom)
+    }
+}
+
+/// Рисунок из `Pictures/`: фон прозрачный, а сама краска чуть просвечивает — сквозь неё видно зерно листа.
+struct Picture: View {
+    let name: String
+
+    var body: some View {
+        if let image = NSImage(named: name) {
+            Image(nsImage: image).resizable().scaledToFit().opacity(0.85)
         }
     }
 }
